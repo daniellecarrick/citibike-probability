@@ -4,11 +4,14 @@ import { useStore } from '../../store';
 import { mapboxColorExpression, mapboxRadiusExpression } from '../../utils/colorScale';
 import type { StationProbability } from '../../types';
 import { HeatSurface } from './HeatSurface';
+import { MetricChips } from './MetricChips';
+import { TimeScrubber } from '../Controls/TimeScrubber';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
 const SOURCE_ID = 'stations';
-const LAYER_ID = 'station-circles';
+const CIRCLE_LAYER = 'station-circles';
+const HIT_LAYER = 'station-hits'; // invisible hit targets for surface mode
 
 interface Props {
   data: StationProbability[];
@@ -19,13 +22,12 @@ export function StationMap({ data }: Props) {
   const map = useRef<mapboxgl.Map | null>(null);
   const { mapMode, selectStation } = useStore();
 
-  // Initialize map
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: 'mapbox://styles/mapbox/light-v11',
       center: [-73.98, 40.75],
       zoom: 12,
     });
@@ -33,57 +35,71 @@ export function StationMap({ data }: Props) {
     map.current.on('load', () => {
       const m = map.current!;
 
+      // Restyle to match design spec
+      try {
+        m.setPaintProperty('water', 'fill-color', '#e9eef3');
+        m.setPaintProperty('land', 'background-color', '#fbfcfd');
+      } catch { /* layers may not exist in this style */ }
+
       m.addSource(SOURCE_ID, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       });
 
+      // Visible circle layer (stations mode)
       m.addLayer({
-        id: LAYER_ID,
+        id: CIRCLE_LAYER,
         type: 'circle',
         source: SOURCE_ID,
         paint: {
-          'circle-radius': mapboxRadiusExpression(),
+          'circle-radius': mapboxRadiusExpression(4, 13),
           'circle-color': mapboxColorExpression(),
-          'circle-opacity': 0.85,
-          'circle-stroke-width': 1,
-          'circle-stroke-color': 'rgba(255,255,255,0.3)',
+          'circle-opacity': 0.82,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#ffffff',
         },
       });
 
-      // Click handler
-      m.on('click', LAYER_ID, (e) => {
-        const features = e.features;
-        if (!features || features.length === 0) return;
-        const id = features[0].properties?.station_id as string;
-        selectStation(id);
+      // Invisible hit targets (surface mode — same size but transparent)
+      m.addLayer({
+        id: HIT_LAYER,
+        type: 'circle',
+        source: SOURCE_ID,
+        paint: {
+          'circle-radius': 9,
+          'circle-color': 'rgba(255,255,255,0)',
+          'circle-opacity': 0,
+        },
       });
 
-      m.on('mouseenter', LAYER_ID, () => {
-        m.getCanvas().style.cursor = 'pointer';
+      m.on('click', CIRCLE_LAYER, (e) => {
+        const id = e.features?.[0]?.properties?.station_id as string | undefined;
+        if (id) selectStation(id);
       });
-      m.on('mouseleave', LAYER_ID, () => {
-        m.getCanvas().style.cursor = '';
+      m.on('click', HIT_LAYER, (e) => {
+        const id = e.features?.[0]?.properties?.station_id as string | undefined;
+        if (id) selectStation(id);
       });
+
+      m.on('mouseenter', CIRCLE_LAYER, () => { m.getCanvas().style.cursor = 'pointer'; });
+      m.on('mouseleave', CIRCLE_LAYER, () => { m.getCanvas().style.cursor = ''; });
+      m.on('mouseenter', HIT_LAYER,    () => { m.getCanvas().style.cursor = 'pointer'; });
+      m.on('mouseleave', HIT_LAYER,    () => { m.getCanvas().style.cursor = ''; });
     });
 
-    return () => {
-      map.current?.remove();
-      map.current = null;
-    };
+    return () => { map.current?.remove(); map.current = null; };
   }, [selectStation]);
 
-  // Update GeoJSON data when prop changes
+  // Update GeoJSON data
   useEffect(() => {
     const m = map.current;
     if (!m || !m.isStyleLoaded()) return;
-
     const source = m.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
     if (!source) return;
 
-    const geojson: GeoJSON.FeatureCollection = {
+    source.setData({
       type: 'FeatureCollection',
-      features: data.map((s) => ({
+      features: data.map(s => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
         properties: {
@@ -91,23 +107,31 @@ export function StationMap({ data }: Props) {
           station_name: s.station_name,
           probability: s.probability,
           stress_score: s.stress_score,
-          sample_count: s.sample_count,
         },
       })),
-    };
+    });
+  }, [data]);
 
-    source.setData(geojson);
-
-    // Toggle circle layer visibility based on mapMode
-    m.setLayoutProperty(LAYER_ID, 'visibility', mapMode === 'stations' ? 'visible' : 'none');
-  }, [data, mapMode]);
+  // Toggle layer visibility by map mode
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !m.isStyleLoaded()) return;
+    try {
+      m.setLayoutProperty(CIRCLE_LAYER, 'visibility', mapMode === 'stations' ? 'visible' : 'none');
+      m.setLayoutProperty(HIT_LAYER,    'visibility', mapMode === 'surface'  ? 'visible' : 'none');
+    } catch { /* layers not yet added */ }
+  }, [mapMode]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
-      {mapMode === 'heat' && map.current && (
+
+      {mapMode === 'surface' && map.current && (
         <HeatSurface map={map.current} data={data} />
       )}
+
+      <MetricChips />
+      <TimeScrubber />
     </div>
   );
 }

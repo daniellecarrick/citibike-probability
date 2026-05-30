@@ -1,15 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { api } from '../api/client';
-import { useStore } from '../store';
+import { useStore, METRIC_TO_API } from '../store';
+import type { DayOfWeek } from '../types';
 
-/**
- * Manages fetching and caching of map probability data.
- *
- * When animation is playing: pre-fetches the entire day's bulk data once,
- * then derives currentMapData from the cache on each time step.
- *
- * When static: fetches a single snapshot for the current day/time/metric.
- */
 export function useMapData() {
   const {
     selectedDay,
@@ -20,8 +13,8 @@ export function useMapData() {
     setCurrentMapData,
   } = useStore();
 
-
-  const cacheKey = `${selectedDay}_${selectedMetric}`;
+  const apiMetric = METRIC_TO_API[selectedMetric] as 'bikes' | 'ebikes' | 'docks';
+  const cacheKey = `${selectedDay}_${apiMetric}`;
   const isFetchingBulk = useRef(false);
 
   // Serve from bulk cache when available
@@ -34,30 +27,24 @@ export function useMapData() {
     }
   }, [selectedTime, bulkCache, cacheKey, setCurrentMapData]);
 
-  // Pre-fetch bulk data when animation starts or metric/day changes
+  // Pre-fetch bulk data
   useEffect(() => {
     if (bulkCache[cacheKey] || isFetchingBulk.current) return;
-
     isFetchingBulk.current = true;
     api.map
-      .bulk(selectedDay, selectedMetric)
-      .then((data) => {
-        setBulkCache(cacheKey, data);
-      })
+      .bulk(selectedDay as DayOfWeek, apiMetric)
+      .then(data => setBulkCache(cacheKey, data))
       .catch(console.error)
-      .finally(() => {
-        isFetchingBulk.current = false;
-      });
-  }, [selectedDay, selectedMetric, cacheKey, bulkCache, setBulkCache]);
+      .finally(() => { isFetchingBulk.current = false; });
+  }, [selectedDay, apiMetric, cacheKey, bulkCache, setBulkCache]);
 
-  // Fallback: fetch single snapshot if bulk cache not ready yet
+  // Fallback single snapshot
   useEffect(() => {
     if (bulkCache[cacheKey]) return;
-
     api.map
-      .snapshot(selectedDay, selectedTime, selectedMetric)
+      .snapshot(selectedDay as DayOfWeek, selectedTime, apiMetric)
       .then(setCurrentMapData)
       .catch(console.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDay, selectedTime, selectedMetric]);
+  }, [selectedDay, selectedTime, apiMetric]);
 }

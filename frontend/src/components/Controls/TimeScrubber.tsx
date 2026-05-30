@@ -9,75 +9,106 @@ function formatTime(minutes: number): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-const SPEEDS = [1, 2, 4, 8];
-// At 60fps each slot is 5 minutes. Speed 1 = 1 slot/frame skip, 4x = 4 slots/frame
-// We use requestAnimationFrame and throttle by frameskip count.
-const FRAME_SKIP: Record<number, number> = { 1: 6, 2: 3, 4: 2, 8: 1 };
+function periodLabel(minutes: number): string {
+  if (minutes < 360) return 'Late night';
+  if (minutes < 480) return 'Early morning';
+  if (minutes < 600) return 'Morning commute surge';
+  if (minutes < 720) return 'Mid-morning';
+  if (minutes < 840) return 'Midday';
+  if (minutes < 1020) return 'Afternoon';
+  if (minutes < 1140) return 'Evening commute surge';
+  if (minutes < 1320) return 'Evening';
+  return 'Late night';
+}
 
 export function TimeScrubber() {
-  const { selectedTime, animation, setTime, setPlaying, setSpeed, stepTime } = useStore();
+  const { selectedTime, animation, setTime, setPlaying, stepTime } = useStore();
   const rafRef = useRef<number | null>(null);
   const frameCount = useRef(0);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
 
   useEffect(() => {
     if (!animation.playing) {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       return;
     }
-
-    const skip = FRAME_SKIP[animation.speedMultiplier] ?? 6;
-
     const tick = () => {
       frameCount.current += 1;
-      if (frameCount.current >= skip) {
+      if (frameCount.current >= 5) { // advance every 5 frames ≈ 12fps
         frameCount.current = 0;
         stepTime();
       }
       rafRef.current = requestAnimationFrame(tick);
     };
-
     rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [animation.playing, animation.speedMultiplier, stepTime]);
+    return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
+  }, [animation.playing, stepTime]);
 
-  const slot = Math.floor(selectedTime / 5); // 0-287
+  function getTimeFromPointer(clientX: number): number {
+    if (!trackRef.current) return selectedTime;
+    const rect = trackRef.current.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(frac * 287) * 5;
+  }
+
+  function onTrackClick(e: React.MouseEvent) {
+    setTime(getTimeFromPointer(e.clientX));
+  }
+
+  function onHandleMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    dragging.current = true;
+    const onMove = (me: MouseEvent) => {
+      if (dragging.current) setTime(getTimeFromPointer(me.clientX));
+    };
+    const onUp = () => {
+      dragging.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  const slot = selectedTime / 5; // 0-287
+  const fillPct = (slot / 287) * 100;
 
   return (
-    <div className="time-scrubber">
-      <div className="time-display">{formatTime(selectedTime)}</div>
+    <div className="time-scrubber-overlay">
+      <div className="scrubber-top-row">
+        <span className="scrubber-period">{periodLabel(selectedTime)}</span>
+        <div className="scrubber-legend">
+          <span>Poor</span>
+          <div className="scrubber-gradient-bar" />
+          <span>Excellent</span>
+        </div>
+        <span className="scrubber-time">{formatTime(selectedTime)}</span>
+      </div>
 
-      <input
-        type="range"
-        min={0}
-        max={287}
-        value={slot}
-        onChange={(e) => setTime(Number(e.target.value) * 5)}
-        className="time-range"
-      />
-
-      <div className="time-controls">
-        <button
-          className="btn btn-play"
-          onClick={() => setPlaying(!animation.playing)}
-        >
+      <div className="scrubber-track-row">
+        <button className="play-btn" onClick={() => setPlaying(!animation.playing)}>
           {animation.playing ? '⏸' : '▶'}
         </button>
 
-        <div className="speed-group">
-          {SPEEDS.map((s) => (
-            <button
-              key={s}
-              className={`btn btn-speed ${animation.speedMultiplier === s ? 'btn-active' : ''}`}
-              onClick={() => setSpeed(s)}
-            >
-              {s}×
-            </button>
-          ))}
+        <div className="scrubber-track-wrap">
+          <div
+            className="scrubber-track"
+            ref={trackRef}
+            onClick={onTrackClick}
+          >
+            <div className="scrubber-fill" style={{ width: `${fillPct}%` }} />
+            <div
+              className="scrubber-handle"
+              style={{ left: `${fillPct}%` }}
+              onMouseDown={onHandleMouseDown}
+            />
+          </div>
+          <div className="scrubber-ticks">
+            {['12a', '6a', '12p', '6p', '12a'].map(t => (
+              <span key={t} className="scrubber-tick">{t}</span>
+            ))}
+          </div>
         </div>
       </div>
     </div>

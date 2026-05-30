@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useStore } from '../store';
-import type { StationDetail } from '../types';
+import type { StationDetail, DayOfWeek } from '../types';
 
 export function useStationDetail() {
   const { selectedStationId, selectedDay, selectedTime } = useStore();
@@ -9,13 +9,10 @@ export function useStationDetail() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!selectedStationId) {
-      setDetail(null);
-      return;
-    }
+    if (!selectedStationId) { setDetail(null); return; }
     setLoading(true);
     api.stations
-      .detail(selectedStationId, selectedDay, selectedTime)
+      .detail(selectedStationId, selectedDay as DayOfWeek, selectedTime)
       .then(setDetail)
       .catch(console.error)
       .finally(() => setLoading(false));

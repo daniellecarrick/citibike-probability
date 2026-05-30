@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useStore } from '../store';
-import type { CommuteResult, Recommendation } from '../types';
+import type { CommuteResult, DayOfWeek, Recommendation } from '../types';
 
 export function useCommute() {
   const { commute, selectedDay, selectedTime } = useStore();
@@ -10,23 +10,14 @@ export function useCommute() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!commute) {
-      setResult(null);
-      setRecommendations([]);
-      return;
-    }
-
+    if (!commute) { setResult(null); setRecommendations([]); return; }
     setLoading(true);
     const { originId, destId } = commute;
-
     Promise.all([
-      api.commute.success(originId, destId, selectedDay, selectedTime),
-      api.commute.recommendations(originId, destId, selectedDay, selectedTime),
+      api.commute.success(originId, destId, selectedDay as DayOfWeek, selectedTime),
+      api.commute.recommendations(originId, destId, selectedDay as DayOfWeek, selectedTime),
     ])
-      .then(([successResult, recs]) => {
-        setResult(successResult);
-        setRecommendations(recs);
-      })
+      .then(([r, recs]) => { setResult(r); setRecommendations(recs); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [commute, selectedDay, selectedTime]);
