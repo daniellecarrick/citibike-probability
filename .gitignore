@@ -1,0 +1,25 @@
+# Database
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Environment files (contain secrets)
+.env
+frontend/.env
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
