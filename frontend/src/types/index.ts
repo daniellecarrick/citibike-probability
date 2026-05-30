@@ -93,13 +93,18 @@ export type BulkMapData = Record<string, StationProbability[]>;
 
 // Admin types
 export interface AdminSummary {
-  total_rows: number;
-  total_polls: number;
-  station_count: number;
-  first_poll: string | null;
-  last_poll: string | null;
-  span_days: number;
-  polls_last_24h: number;
+  // Real (live collector) data
+  real_rows: number;
+  real_polls: number;
+  real_station_count: number;
+  real_first_poll: string | null;
+  real_last_poll: string | null;
+  real_span_days: number;
+  real_polls_last_24h: number;
+  // Seeded data context
+  seeded_rows: number;
+  seeded_polls: number;
+  // Constants
   expected_polls_per_day: number;
 }
 

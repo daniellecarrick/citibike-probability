@@ -94,8 +94,9 @@ async def poll_status(client: httpx.AsyncClient) -> int:
             """
             INSERT INTO station_snapshots
                 (timestamp, station_id, available_bikes,
-                 available_classic_bikes, available_ebikes, available_docks)
-            VALUES (?, ?, ?, ?, ?, ?)
+                 available_classic_bikes, available_ebikes, available_docks,
+                 is_seeded)
+            VALUES (?, ?, ?, ?, ?, ?, 0)
             """,
             rows,
         )
