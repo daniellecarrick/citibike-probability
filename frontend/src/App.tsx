@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from './api/client';
+import { AdminPage } from './components/Admin/AdminPage';
 import { CommutePlanner } from './components/CommutePlanner/CommutePlanner';
 import { DaySelector } from './components/Controls/DaySelector';
 import { ModeSelector } from './components/Controls/ModeSelector';
@@ -12,39 +13,24 @@ import type { Station } from './types';
 import './styles.css';
 
 type SidebarTab = 'detail' | 'commute';
+type AppView = 'map' | 'admin';
 
-function App() {
+function MapView({ stations }: { stations: Station[] }) {
   const { currentMapData, selectedStationId } = useStore();
-  const [stations, setStations] = useState<Station[]>([]);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('detail');
 
-  // Drive map data fetching
   useMapData();
 
-  useEffect(() => {
-    api.stations.list().then(setStations).catch(console.error);
-  }, []);
-
-  // Auto-switch to detail tab when a station is clicked
   useEffect(() => {
     if (selectedStationId) setSidebarTab('detail');
   }, [selectedStationId]);
 
   return (
-    <div className="app">
-      {/* Top control bar */}
-      <header className="topbar">
-        <div className="app-title">Citi Bike Probability Explorer</div>
-        <ModeSelector />
-        <DaySelector />
-      </header>
-
-      {/* Main layout: map + sidebar */}
+    <>
       <div className="main">
         <div className="map-container">
           <StationMap data={currentMapData} />
         </div>
-
         <aside className="sidebar">
           <div className="sidebar-tabs">
             <button
@@ -60,7 +46,6 @@ function App() {
               Commute
             </button>
           </div>
-
           <div className="sidebar-content">
             {sidebarTab === 'detail' ? (
               <StationDetailPanel />
@@ -70,11 +55,54 @@ function App() {
           </div>
         </aside>
       </div>
-
-      {/* Time scrubber at bottom */}
       <footer className="bottom-bar">
         <TimeScrubber />
       </footer>
+    </>
+  );
+}
+
+function App() {
+  const [stations, setStations] = useState<Station[]>([]);
+  const [view, setView] = useState<AppView>('map');
+
+  useEffect(() => {
+    api.stations.list().then(setStations).catch(console.error);
+  }, []);
+
+  return (
+    <div className={`app ${view === 'admin' ? 'app-admin' : ''}`}>
+      <header className="topbar">
+        <div className="app-title">Citi Bike Probability Explorer</div>
+        {view === 'map' && (
+          <>
+            <ModeSelector />
+            <DaySelector />
+          </>
+        )}
+        <nav className="topbar-nav">
+          <button
+            className={`nav-btn ${view === 'map' ? 'nav-btn-active' : ''}`}
+            onClick={() => setView('map')}
+          >
+            Map
+          </button>
+          <button
+            className={`nav-btn ${view === 'admin' ? 'nav-btn-active' : ''}`}
+            onClick={() => setView('admin')}
+          >
+            Admin
+          </button>
+        </nav>
+      </header>
+
+      {view === 'map' ? (
+        <MapView stations={stations} />
+      ) : (
+        <div className="admin-container">
+          <AdminPage />
+        </div>
+      )}
     </div>
   );
 }

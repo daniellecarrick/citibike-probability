@@ -1,4 +1,7 @@
 import type {
+  AdminCoverageSlot,
+  AdminPoll,
+  AdminSummary,
   BulkMapData,
   CommuteResult,
   DayOfWeek,
@@ -41,5 +44,11 @@ export const api = {
       get<CommuteResult>('/api/commute/success', { origin, destination, day, departure_time }),
     recommendations: (origin: string, destination: string, day: DayOfWeek, departure_time: number) =>
       get<Recommendation[]>('/api/commute/recommendations', { origin, destination, day, departure_time }),
+  },
+
+  admin: {
+    summary: () => get<AdminSummary>('/api/admin/summary'),
+    polls: (limit = 100) => get<AdminPoll[]>('/api/admin/polls', { limit }),
+    coverage: () => get<AdminCoverageSlot[]>('/api/admin/coverage'),
   },
 };

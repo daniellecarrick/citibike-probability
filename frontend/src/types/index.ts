@@ -90,3 +90,36 @@ export interface Recommendation {
 
 // Bulk animation data: slot_index (0-287) → station probabilities
 export type BulkMapData = Record<string, StationProbability[]>;
+
+// Admin types
+export interface AdminSummary {
+  total_rows: number;
+  total_polls: number;
+  station_count: number;
+  first_poll: string | null;
+  last_poll: string | null;
+  span_days: number;
+  polls_last_24h: number;
+  expected_polls_per_day: number;
+}
+
+export interface AdminPoll {
+  timestamp: number;
+  datetime_utc: string;
+  datetime_local: string;
+  station_count: number;
+  complete: boolean;
+}
+
+export interface AdminCoverageSlot {
+  raw_slot: number;
+  day_of_week: number;      // 0=Mon … 6=Sun
+  day_name: string;
+  time_minutes: number;
+  time_label: string;
+  poll_count: number;
+  avg_ebike_prob: number | null;
+  avg_bike_prob: number | null;
+  avg_dock_prob: number | null;
+  mean_ebikes: number | null;
+}

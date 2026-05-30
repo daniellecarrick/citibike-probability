@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import commute, map, stations
+from routers import admin, commute, map, stations
 
 app = FastAPI(title="Citi Bike Probability API", version="1.0.0")
 
@@ -19,6 +19,7 @@ app.add_middleware(
 app.include_router(stations.router)
 app.include_router(map.router)
 app.include_router(commute.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health")
