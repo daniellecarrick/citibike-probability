@@ -154,6 +154,41 @@ The status feed updates every minute. The collector polls it every 5 minutes.
 
 ---
 
+## Verifying data collection
+
+There are three ways to confirm the collector is running and data is being saved.
+
+**Admin page** (requires backend + frontend running)
+
+Click **Admin** in the top-right of the header. The admin page shows a timestamped log of every poll cycle, a coverage heatmap of all 2,016 five-minute windows in the week, and summary stats including the most recent poll time and total row count.
+
+**Health endpoint** (requires backend running)
+
+Open in a browser or run with curl:
+
+```
+http://localhost:8000/api/health
+```
+
+Returns the total snapshot count and the timestamp of the most recent poll. Refresh it a few minutes apart to confirm the count is growing.
+
+**Direct SQLite query** (no services required)
+
+```bash
+sqlite3 data/citibike.db "
+SELECT datetime(timestamp,'unixepoch','localtime') AS time,
+       COUNT(*) AS stations
+FROM station_snapshots
+GROUP BY (timestamp/300)*300
+ORDER BY timestamp DESC
+LIMIT 10;
+"
+```
+
+Shows the 10 most recent polls with a timestamp and station count. A complete poll captures all ~2,400 active stations. This works even when the backend and frontend are not running.
+
+---
+
 ## Docker (optional)
 
 To run all three services together:
