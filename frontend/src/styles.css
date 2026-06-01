@@ -666,8 +666,36 @@ button { cursor: pointer; font-family: inherit; }
   font-size: 21px;
   font-weight: 600;
   color: var(--ink);
-  margin-bottom: 10px;
+  margin-bottom: 0;
   line-height: 1.2;
+}
+.station-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.station-status-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.station-time-line {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.station-mode-tag {
+  color: var(--text-faint);
+  font-style: italic;
 }
 .station-actions { display: flex; gap: 8px; }
 .btn-origin {

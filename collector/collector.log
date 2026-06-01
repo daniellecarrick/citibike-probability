@@ -1,0 +1,126 @@
+2026-05-30T16:49:00 [collector] INFO Database initialized
+2026-05-30T16:49:00 [collector] INFO Refreshing station metadata...
+2026-05-30T16:49:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_information.json "HTTP/1.1 200 OK"
+2026-05-30T16:49:01 [collector] INFO Upserted 2410 stations
+2026-05-30T16:49:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T16:49:02 [collector] INFO Stored 2298 snapshots at 20:49:02 UTC
+2026-05-30T16:54:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T16:54:02 [collector] INFO Stored 2298 snapshots at 20:54:02 UTC
+2026-05-30T16:59:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T16:59:04 [collector] INFO Stored 2299 snapshots at 20:59:04 UTC
+2026-05-30T17:04:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:04:02 [collector] INFO Stored 2298 snapshots at 21:04:02 UTC
+2026-05-30T17:09:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:09:02 [collector] INFO Stored 2299 snapshots at 21:09:02 UTC
+2026-05-30T17:14:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:14:02 [collector] INFO Stored 2299 snapshots at 21:14:02 UTC
+2026-05-30T17:19:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:19:02 [collector] INFO Stored 2299 snapshots at 21:19:02 UTC
+2026-05-30T17:24:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:24:02 [collector] INFO Stored 2299 snapshots at 21:24:02 UTC
+2026-05-30T17:29:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:29:02 [collector] INFO Stored 2299 snapshots at 21:29:01 UTC
+2026-05-30T17:34:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:34:02 [collector] INFO Stored 2298 snapshots at 21:34:02 UTC
+2026-05-30T17:39:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:39:02 [collector] INFO Stored 2298 snapshots at 21:39:01 UTC
+2026-05-30T17:44:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:44:03 [collector] INFO Stored 2298 snapshots at 21:44:03 UTC
+2026-05-30T17:49:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:49:02 [collector] INFO Stored 2298 snapshots at 21:49:02 UTC
+2026-05-30T17:54:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:54:03 [collector] INFO Stored 2299 snapshots at 21:54:02 UTC
+2026-05-30T17:59:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T17:59:03 [collector] INFO Stored 2298 snapshots at 21:59:03 UTC
+2026-05-30T18:04:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:04:02 [collector] INFO Stored 2298 snapshots at 22:04:02 UTC
+2026-05-30T18:09:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:09:03 [collector] INFO Stored 2297 snapshots at 22:09:02 UTC
+2026-05-30T18:14:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:14:02 [collector] INFO Stored 2297 snapshots at 22:14:02 UTC
+2026-05-30T18:19:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:19:03 [collector] INFO Stored 2298 snapshots at 22:19:02 UTC
+2026-05-30T18:24:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:24:02 [collector] INFO Stored 2298 snapshots at 22:24:02 UTC
+2026-05-30T18:29:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:29:03 [collector] INFO Stored 2298 snapshots at 22:29:03 UTC
+2026-05-30T18:34:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:34:03 [collector] INFO Stored 2298 snapshots at 22:34:02 UTC
+2026-05-30T18:39:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:39:02 [collector] INFO Stored 2296 snapshots at 22:39:02 UTC
+2026-05-30T18:44:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:44:03 [collector] INFO Stored 2296 snapshots at 22:44:02 UTC
+2026-05-30T18:49:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:49:03 [collector] INFO Stored 2299 snapshots at 22:49:02 UTC
+2026-05-30T18:54:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:54:03 [collector] INFO Stored 2298 snapshots at 22:54:02 UTC
+2026-05-30T18:59:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T18:59:02 [collector] INFO Stored 2297 snapshots at 22:59:01 UTC
+2026-05-30T19:04:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:04:02 [collector] INFO Stored 2299 snapshots at 23:04:02 UTC
+2026-05-30T19:09:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:09:02 [collector] INFO Stored 2299 snapshots at 23:09:02 UTC
+2026-05-30T19:14:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:14:02 [collector] INFO Stored 2299 snapshots at 23:14:01 UTC
+2026-05-30T19:19:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:19:02 [collector] INFO Stored 2299 snapshots at 23:19:02 UTC
+2026-05-30T19:24:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:24:02 [collector] INFO Stored 2299 snapshots at 23:24:02 UTC
+2026-05-30T19:29:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:29:02 [collector] INFO Stored 2297 snapshots at 23:29:02 UTC
+2026-05-30T19:34:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:34:02 [collector] INFO Stored 2298 snapshots at 23:34:02 UTC
+2026-05-30T19:39:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:39:02 [collector] INFO Stored 2299 snapshots at 23:39:01 UTC
+2026-05-30T19:44:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:44:02 [collector] INFO Stored 2299 snapshots at 23:44:01 UTC
+2026-05-30T19:49:02 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:49:03 [collector] INFO Stored 2298 snapshots at 23:49:02 UTC
+2026-05-30T19:54:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:54:02 [collector] INFO Stored 2298 snapshots at 23:54:01 UTC
+2026-05-30T19:59:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T19:59:02 [collector] INFO Stored 2298 snapshots at 23:59:01 UTC
+2026-05-30T20:04:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:04:02 [collector] INFO Stored 2299 snapshots at 00:04:02 UTC
+2026-05-30T20:09:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:09:02 [collector] INFO Stored 2299 snapshots at 00:09:01 UTC
+2026-05-30T20:14:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:14:02 [collector] INFO Stored 2299 snapshots at 00:14:02 UTC
+2026-05-30T20:19:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:19:03 [collector] INFO Stored 2299 snapshots at 00:19:02 UTC
+2026-05-30T20:24:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:24:02 [collector] INFO Stored 2299 snapshots at 00:24:01 UTC
+2026-05-30T20:29:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:29:02 [collector] INFO Stored 2299 snapshots at 00:29:02 UTC
+2026-05-30T20:34:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:34:02 [collector] INFO Stored 2299 snapshots at 00:34:01 UTC
+2026-05-30T20:39:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:39:02 [collector] INFO Stored 2299 snapshots at 00:39:01 UTC
+2026-05-30T20:44:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:44:03 [collector] INFO Stored 2299 snapshots at 00:44:03 UTC
+2026-05-30T20:49:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:49:02 [collector] INFO Stored 2299 snapshots at 00:49:02 UTC
+2026-05-30T20:54:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:54:02 [collector] INFO Stored 2298 snapshots at 00:54:01 UTC
+2026-05-30T20:59:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T20:59:02 [collector] INFO Stored 2299 snapshots at 00:59:02 UTC
+2026-05-30T21:04:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T21:04:02 [collector] INFO Stored 2299 snapshots at 01:04:01 UTC
+2026-05-30T21:09:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T21:09:02 [collector] INFO Stored 2299 snapshots at 01:09:01 UTC
+2026-05-30T21:14:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T21:14:02 [collector] INFO Stored 2299 snapshots at 01:14:01 UTC
+2026-05-30T21:19:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T21:19:02 [collector] INFO Stored 2297 snapshots at 01:19:02 UTC
+2026-05-30T21:24:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T21:24:02 [collector] INFO Stored 2298 snapshots at 01:24:02 UTC
+2026-05-30T21:29:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T21:29:02 [collector] INFO Stored 2298 snapshots at 01:29:02 UTC
+2026-05-30T21:34:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T21:34:01 [collector] INFO Stored 2298 snapshots at 01:34:01 UTC
+2026-05-30T21:39:01 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T21:39:02 [collector] INFO Stored 2298 snapshots at 01:39:02 UTC
+2026-05-30T23:15:07 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-30T23:31:43 [collector] ERROR HTTP error during poll: 
+2026-05-31T00:48:58 [collector] INFO HTTP Request: GET https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json "HTTP/1.1 200 OK"
+2026-05-31T00:48:58 [collector] INFO Stored 2297 snapshots at 04:48:58 UTC

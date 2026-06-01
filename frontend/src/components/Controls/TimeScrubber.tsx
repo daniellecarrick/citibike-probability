@@ -105,8 +105,8 @@ export function TimeScrubber() {
             />
           </div>
           <div className="scrubber-ticks">
-            {['12a', '6a', '12p', '6p', '12a'].map(t => (
-              <span key={t} className="scrubber-tick">{t}</span>
+            {['12a', '6a', '12p', '6p', '12a'].map((t, i) => (
+              <span key={i} className="scrubber-tick">{t}</span>
             ))}
           </div>
         </div>

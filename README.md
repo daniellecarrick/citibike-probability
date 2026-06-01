@@ -117,7 +117,7 @@ You need three processes running: the backend, the data collector, and the front
 **Terminal 1 — Backend API**
 
 ```bash
-cd /path/to/citibike-probability/backend
+cd backend
 DB_PATH=../data/citibike.db python3 -m uvicorn main:app --port 8000 --reload
 ```
 
@@ -126,7 +126,7 @@ The API will be available at `http://localhost:8000`. You can view the auto-gene
 **Terminal 2 — Data collector** (optional while developing; required to accumulate real data)
 
 ```bash
-cd /path/to/citibike-probability/collector
+cd collector
 DB_PATH=../data/citibike.db python3 collector.py
 ```
 
@@ -135,7 +135,7 @@ This polls the live Citi Bike feed every 5 minutes and appends to the database. 
 **Terminal 3 — Frontend**
 
 ```bash
-cd /path/to/citibike-probability/frontend
+cd frontend
 npm run dev
 ```
 
@@ -175,14 +175,7 @@ Returns the total snapshot count and the timestamp of the most recent poll. Refr
 **Direct SQLite query** (no services required)
 
 ```bash
-sqlite3 data/citibike.db "
-SELECT datetime(timestamp,'unixepoch','localtime') AS time,
-       COUNT(*) AS stations
-FROM station_snapshots
-GROUP BY (timestamp/300)*300
-ORDER BY timestamp DESC
-LIMIT 10;
-"
+sqlite3 data/citibike.db "SELECT datetime(timestamp,'unixepoch','localtime') AS time, COUNT(*) AS stations FROM station_snapshots GROUP BY (timestamp/300)*300 ORDER BY timestamp DESC LIMIT 10;"
 ```
 
 Shows the 10 most recent polls with a timestamp and station count. A complete poll captures all ~2,400 active stations. This works even when the backend and frontend are not running.

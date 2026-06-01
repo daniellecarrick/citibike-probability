@@ -1,7 +1,7 @@
 import mapboxgl from 'mapbox-gl';
 import { useEffect, useRef } from 'react';
 import { useStore } from '../../store';
-import { mapboxColorExpression, mapboxRadiusExpression } from '../../utils/colorScale';
+import { mapboxColorExpression } from '../../utils/colorScale';
 import type { StationProbability } from '../../types';
 import { HeatSurface } from './HeatSurface';
 import { MetricChips } from './MetricChips';
@@ -52,7 +52,7 @@ export function StationMap({ data }: Props) {
         type: 'circle',
         source: SOURCE_ID,
         paint: {
-          'circle-radius': mapboxRadiusExpression(4, 13),
+          'circle-radius': 8,
           'circle-color': mapboxColorExpression(),
           'circle-opacity': 0.82,
           'circle-stroke-width': 1.5,
@@ -85,6 +85,11 @@ export function StationMap({ data }: Props) {
       m.on('mouseleave', CIRCLE_LAYER, () => { m.getCanvas().style.cursor = ''; });
       m.on('mouseenter', HIT_LAYER,    () => { m.getCanvas().style.cursor = 'pointer'; });
       m.on('mouseleave', HIT_LAYER,    () => { m.getCanvas().style.cursor = ''; });
+
+      // Apply initial visibility — the visibility effect runs before layers exist, so set it here.
+      const initialMode = useStore.getState().mapMode;
+      m.setLayoutProperty(CIRCLE_LAYER, 'visibility', initialMode === 'stations' ? 'visible' : 'none');
+      m.setLayoutProperty(HIT_LAYER,    'visibility', initialMode === 'surface'  ? 'visible' : 'none');
     });
 
     return () => { map.current?.remove(); map.current = null; };
