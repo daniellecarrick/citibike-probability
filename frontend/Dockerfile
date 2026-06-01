@@ -3,13 +3,13 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-ARG VITE_API_URL
 ARG VITE_MAPBOX_TOKEN
 RUN npm run build
 
-FROM node:20-alpine
-WORKDIR /app
-RUN npm install -g serve
-COPY --from=builder /app/dist ./dist
-EXPOSE 3000
-CMD ["sh", "-c", "serve dist -l ${PORT:-3000}"]
+FROM nginx:alpine
+RUN apk add --no-cache gettext
+COPY nginx.conf.template /etc/nginx/nginx.conf.template
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Substitute $PORT and $BACKEND_URL at container start, then launch nginx
+CMD ["sh", "-c", "export PORT=${PORT:-80}; envsubst '$PORT $BACKEND_URL' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
