@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import { api } from './api/client';
 import { AdminPage } from './components/Admin/AdminPage';
 import { CommutePlanner } from './components/CommutePlanner/CommutePlanner';
@@ -53,7 +54,6 @@ function MapView({ stations }: { stations: Station[] }) {
 
 function App() {
   const [stations, setStations] = useState<Station[]>([]);
-  const [view, setView] = useState<'map' | 'admin'>('map');
 
   useEffect(() => {
     api.stations.list().then(setStations).catch(console.error);
@@ -61,15 +61,12 @@ function App() {
 
   return (
     <div className="app">
-      <Header view={view} onViewChange={setView} />
+      <Header />
 
-      {view === 'map' ? (
-        <MapView stations={stations} />
-      ) : (
-        <div className="admin-container">
-          <AdminPage />
-        </div>
-      )}
+      <Routes>
+        <Route path="/" element={<MapView stations={stations} />} />
+        <Route path="/admin" element={<div className="admin-container"><AdminPage /></div>} />
+      </Routes>
     </div>
   );
 }

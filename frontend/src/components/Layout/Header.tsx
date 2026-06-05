@@ -1,3 +1,4 @@
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import type { DayOfWeek } from '../../types';
 
@@ -19,13 +20,11 @@ function formatTime(minutes: number): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-interface Props {
-  view: 'map' | 'admin';
-  onViewChange: (v: 'map' | 'admin') => void;
-}
-
-export function Header({ view, onViewChange }: Props) {
+export function Header() {
   const { selectedDay, selectedTime, mapMode, setDay, setMapMode } = useStore();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const view = pathname === '/admin' ? 'admin' : 'map';
 
   return (
     <header className="header">
@@ -89,9 +88,9 @@ export function Header({ view, onViewChange }: Props) {
       )}
 
       {/* Nav */}
-      <div className={`header-nav${view === 'map' ? '' : ' '}`} style={{ marginLeft: view === 'admin' ? 'auto' : 0 }}>
-        <button className={`nav-btn${view === 'map' ? ' active' : ''}`} onClick={() => onViewChange('map')}>Map</button>
-        <button className={`nav-btn${view === 'admin' ? ' active' : ''}`} onClick={() => onViewChange('admin')}>Admin</button>
+      <div className={`header-nav`} style={{ marginLeft: view === 'admin' ? 'auto' : 0 }}>
+        <button className={`nav-btn${view === 'map' ? ' active' : ''}`} onClick={() => navigate('/')}>Map</button>
+        <button className={`nav-btn${view === 'admin' ? ' active' : ''}`} onClick={() => navigate('/admin')}>Admin</button>
       </div>
     </header>
   );
