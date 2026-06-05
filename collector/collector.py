@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 STATION_INFO_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_information.json"
 STATION_STATUS_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json"
 POLL_INTERVAL_SECONDS = 300  # 5 minutes
-STATION_REFRESH_INTERVAL = 86400  # refresh station metadata daily
+STATION_REFRESH_INTERVAL = 3600  # refresh station metadata hourly
 
 
 def _parse_ebikes(station: dict) -> int:
@@ -92,7 +92,7 @@ async def poll_status(client: httpx.AsyncClient) -> int:
     with conn:
         conn.executemany(
             """
-            INSERT INTO station_snapshots
+            INSERT OR IGNORE INTO station_snapshots
                 (timestamp, station_id, available_bikes,
                  available_classic_bikes, available_ebikes, available_docks,
                  is_seeded)
@@ -100,11 +100,18 @@ async def poll_status(client: httpx.AsyncClient) -> int:
             """,
             rows,
         )
+        saved = conn.execute(
+            "SELECT COUNT(*) FROM station_snapshots WHERE timestamp = ?", (now,)
+        ).fetchone()[0]
     conn.close()
 
+    skipped = len(rows) - saved
+    if skipped:
+        log.warning(f"Skipped {skipped} snapshots with unknown station_ids — stations table needs refresh")
+
     ts = datetime.fromtimestamp(now, tz=timezone.utc).strftime("%H:%M:%S UTC")
-    log.info(f"Stored {len(rows)} snapshots at {ts}")
-    return len(rows)
+    log.info(f"Stored {saved}/{len(rows)} snapshots at {ts}")
+    return saved
 
 
 async def run() -> None:
@@ -118,12 +125,15 @@ async def run() -> None:
             loop_start = time.monotonic()
 
             try:
-                # Refresh station metadata daily
+                # Refresh station metadata hourly (or immediately if last poll had unknown stations)
                 if time.time() - last_station_refresh > STATION_REFRESH_INTERVAL:
                     await refresh_stations(client)
                     last_station_refresh = time.time()
 
-                await poll_status(client)
+                saved = await poll_status(client)
+                if saved == 0:
+                    log.warning("Zero snapshots saved — forcing station refresh next cycle")
+                    last_station_refresh = 0
 
             except httpx.HTTPError as exc:
                 log.error(f"HTTP error during poll: {exc}")
