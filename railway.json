@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.railway.app/railway-schema.json",
+  "services": {
+    "citibike-probability-backend": {
+      "volumes": [
+        {
+          "name": "citibike-data-fdbH",
+          "mountPath": "/data"
+        }
+      ],
+      "variables": {
+        "DB_PATH": "/data/citibike.db"
+      }
+    }
+  }
+}
