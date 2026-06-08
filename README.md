@@ -182,6 +182,43 @@ Shows the 10 most recent polls with a timestamp and station count. A complete po
 
 ---
 
+## API endpoints
+
+The backend exposes a REST API. Interactive docs are available at `/docs` on the backend URL.
+
+**Health**
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/health` | DB status, snapshot count, latest poll timestamp |
+
+**Stations**
+| Method | Path | Query params | Description |
+|---|---|---|---|
+| GET | `/api/stations` | — | List all stations |
+| GET | `/api/stations/{id}` | — | Single station metadata |
+| GET | `/api/stations/{id}/detail` | `day`, `time` | Full detail: probabilities, distributions, stress score, nearby stations |
+
+**Map**
+| Method | Path | Query params | Description |
+|---|---|---|---|
+| GET | `/api/map` | `day`, `time`, `metric` | Probability snapshot for all stations (used to render the map) |
+| GET | `/api/map/bulk` | `day`, `metric` | All 288 time slots for a day in one response (used for time animation) |
+
+**Commute**
+| Method | Path | Query params | Description |
+|---|---|---|---|
+| GET | `/api/commute/success` | `origin`, `destination`, `day`, `departure_time` | End-to-end commute success probability |
+| GET | `/api/commute/recommendations` | `origin`, `destination`, `day`, `departure_time` | Ranked list of departure times by success probability |
+
+**Admin**
+| Method | Path | Query params | Description |
+|---|---|---|---|
+| GET | `/api/admin/summary` | — | Collection stats: real vs seeded rows, polls last 24h |
+| GET | `/api/admin/polls` | `limit` | Recent poll log |
+| GET | `/api/admin/coverage` | — | Per-slot coverage data for the heatmap |
+
+---
+
 ## Docker (optional)
 
 To run all three services together:
