@@ -10,7 +10,9 @@ if [ -n "$BACKEND_URL" ]; then
     *) BACKEND_URL="http://$BACKEND_URL" ;;
   esac
   export BACKEND_URL
-  envsubst '$PORT $BACKEND_URL' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf
+  BACKEND_HOST=$(echo "$BACKEND_URL" | sed 's|https\?://||' | cut -d/ -f1)
+  export BACKEND_HOST
+  envsubst '$PORT $BACKEND_URL $BACKEND_HOST' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf
 else
   # No backend configured — serve static files only
   envsubst '$PORT' < /etc/nginx/nginx-static.conf.template > /etc/nginx/conf.d/default.conf
