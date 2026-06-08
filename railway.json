@@ -22,6 +22,11 @@
       "variables": {
         "DB_PATH": "/data/citibike.db"
       }
+    },
+    "heroic-tenderness": {
+      "variables": {
+        "VITE_API_URL": "https://citibike-probability-backend-production.up.railway.app"
+      }
     }
   }
 }
