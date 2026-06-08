@@ -190,10 +190,69 @@ def get_bulk_day_probabilities(
     """
     All 288 five-minute time slots for a given day/metric.
     Frontend caches this for smooth animation.
+
+    Uses a single SQL aggregation instead of 288 per-slot queries.
     """
-    slots: dict[int, list[dict]] = {}
-    for slot in range(288):
-        slots[slot] = get_all_stations_probability(
-            conn, day_of_week, slot * 5, metric, window_minutes, lookback_days
+    from collections import defaultdict
+
+    col = METRIC_COLUMN[metric]
+    dow_start = (day_of_week * SECONDS_PER_DAY + EPOCH_MONDAY_OFFSET) % SECONDS_PER_WEEK
+    dow_end = dow_start + SECONDS_PER_DAY - 1
+    since = _since(lookback_days)
+    window_slots = window_minutes // 5  # 3 slots for a 15-min window
+
+    station_rows = conn.execute(
+        "SELECT station_id, station_name, lat, lng, capacity FROM stations"
+    ).fetchall()
+    stations = [dict(r) for r in station_rows]
+
+    # One query: per-station per-raw-slot aggregates for the entire day
+    rows = conn.execute(
+        f"""
+        SELECT
+            station_id,
+            CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
+            COUNT(*)                                       AS total,
+            SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END)   AS avail_count,
+            SUM(CAST({col} AS REAL))                       AS sum_inventory
+        FROM station_snapshots
+        WHERE timestamp >= ?
+          AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+        GROUP BY station_id, raw_slot
+        """,
+        (since, dow_start, dow_end),
+    ).fetchall()
+
+    # station_id -> {raw_slot -> (total, avail_count, sum_inventory)}
+    slot_data: dict[str, dict[int, tuple[int, int, float]]] = defaultdict(dict)
+    for r in rows:
+        slot_data[r["station_id"]][r["raw_slot"]] = (
+            r["total"], r["avail_count"], r["sum_inventory"] or 0.0
         )
-    return slots
+
+    # For each of 288 target slots, aggregate the ±window_slots neighbouring raw slots
+    result: dict[int, list[dict]] = {}
+    for target_slot in range(288):
+        slot_result = []
+        for station in stations:
+            sid = station["station_id"]
+            total = 0
+            avail = 0
+            sum_inv = 0.0
+            for offset in range(-window_slots, window_slots + 1):
+                raw = (target_slot + offset) % 288  # wraps correctly at midnight
+                if raw in slot_data[sid]:
+                    t, a, s = slot_data[sid][raw]
+                    total += t
+                    avail += a
+                    sum_inv += s
+            slot_result.append({
+                **station,
+                "probability": (avail / total) if total > 0 else None,
+                "mean_inventory": (sum_inv / total) if total > 0 else None,
+                "sample_count": total,
+                "stress_score": None,
+            })
+        result[target_slot] = slot_result
+
+    return result
