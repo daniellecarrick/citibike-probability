@@ -74,8 +74,8 @@ export function HeatSurface({ map, data }: Props) {
 
     return () => {
       workerRef.current?.terminate();
-      if (map.getStyle() && map.getLayer(IMAGE_LAYER_ID)) map.removeLayer(IMAGE_LAYER_ID);
-      if (map.getStyle() && map.getSource(IMAGE_SOURCE_ID)) map.removeSource(IMAGE_SOURCE_ID);
+      if (map.isStyleLoaded() && map.getLayer(IMAGE_LAYER_ID)) map.removeLayer(IMAGE_LAYER_ID);
+      if (map.isStyleLoaded() && map.getSource(IMAGE_SOURCE_ID)) map.removeSource(IMAGE_SOURCE_ID);
     };
   }, [map]);
 

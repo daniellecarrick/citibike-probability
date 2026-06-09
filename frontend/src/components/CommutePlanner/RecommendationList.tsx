@@ -26,28 +26,32 @@ export function RecommendationList({ recommendations }: Props) {
 
   if (!recommendations.length) return null;
 
-  // Build points across all recommendations sorted by departure_minute
-  const sorted = [...recommendations].sort((a, b) => {
-    // Sort by offset from currentTime
-    return a.offset_minutes - b.offset_minutes;
-  });
+  // Build points across all recommendations sorted by offset
+  const sorted = [...recommendations].sort((a, b) => a.offset_minutes - b.offset_minutes);
 
-  const minOff = sorted[0]?.offset_minutes ?? -60;
-  const maxOff = sorted[sorted.length - 1]?.offset_minutes ?? 60;
-  const span = maxOff - minOff || 1;
+  // Fixed 2-hour domain centered on the best departure time
+  const bestOffset = best?.offset_minutes ?? 0;
+  const domainMin = bestOffset - 60;
+  const domainMax = bestOffset + 60;
+  const domainSpan = 120;
 
   const pts = sorted
-    .filter(r => r.success_probability !== null)
+    .filter(r => r.success_probability !== null && r.offset_minutes >= domainMin && r.offset_minutes <= domainMax)
     .map(r => ({
-      x: PAD.l + ((r.offset_minutes - minOff) / span) * IW,
+      x: PAD.l + ((r.offset_minutes - domainMin) / domainSpan) * IW,
       y: PAD.t + (1 - (r.success_probability ?? 0)) * IH,
       r: r,
     }));
 
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L${(PAD.l + IW).toFixed(1)},${(PAD.t + IH).toFixed(1)} L${PAD.l.toFixed(1)},${(PAD.t + IH).toFixed(1)} Z`;
+  const first = pts[0];
+  const last  = pts[pts.length - 1];
+  const areaPath = first && last
+    ? `${linePath} L${last.x.toFixed(1)},${(PAD.t + IH).toFixed(1)} L${first.x.toFixed(1)},${(PAD.t + IH).toFixed(1)} Z`
+    : '';
 
-  const nowX = PAD.l + (0 - minOff) / span * IW;
+  // "now" marker sits at offset 0 (the user's currently selected time)
+  const nowX = PAD.l + (0 - domainMin) / domainSpan * IW;
   const bestPt = pts.find(p => p.r.departure_minute === best?.departure_minute);
 
   const bestColor = probabilityToColor(best?.success_probability ?? null);
@@ -119,17 +123,25 @@ export function RecommendationList({ recommendations }: Props) {
           </>
         )}
 
-        {/* X-axis labels */}
-        {[sorted[0], sorted[Math.floor(sorted.length / 2)], sorted[sorted.length - 1]].filter(Boolean).map((r, i) => {
-          const x = PAD.l + ((r.offset_minutes - minOff) / span) * IW;
-          const anchor = i === 0 ? 'start' : i === 2 ? 'end' : 'middle';
-          return (
-            <text key={i} x={x} y={H - 4} textAnchor={anchor}
-              fontFamily="'IBM Plex Mono',monospace" fontSize={8} fill="#9aa1ad">
-              {r.departure_time}
-            </text>
-          );
-        })}
+        {/* X-axis labels: left edge · best (centre) · right edge */}
+        {first && (
+          <text x={first.x} y={H - 4} textAnchor="start"
+            fontFamily="'IBM Plex Mono',monospace" fontSize={8} fill="#9aa1ad">
+            {first.r.departure_time}
+          </text>
+        )}
+        {bestPt && (
+          <text x={bestPt.x} y={H - 4} textAnchor="middle"
+            fontFamily="'IBM Plex Mono',monospace" fontSize={8} fill="#9aa1ad">
+            {best?.departure_time}
+          </text>
+        )}
+        {last && last.r.departure_minute !== first?.r.departure_minute && (
+          <text x={last.x} y={H - 4} textAnchor="end"
+            fontFamily="'IBM Plex Mono',monospace" fontSize={8} fill="#9aa1ad">
+            {last.r.departure_time}
+          </text>
+        )}
       </svg>
     </div>
   );

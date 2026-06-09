@@ -13,15 +13,29 @@ export function MetricChips() {
 
   return (
     <div className="metric-chips">
-      {CHIPS.map(c => (
-        <button
-          key={c.key}
-          className={`metric-chip ${selectedMetric === c.key ? 'active' : 'inactive'}`}
-          onClick={() => setMetric(c.key)}
-        >
-          {c.label}
-        </button>
-      ))}
+      {/* Desktop: vertical chip list */}
+      <div className="metric-chips-list">
+        {CHIPS.map(c => (
+          <button
+            key={c.key}
+            className={`metric-chip ${selectedMetric === c.key ? 'active' : 'inactive'}`}
+            onClick={() => setMetric(c.key)}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Mobile: compact select */}
+      <select
+        className="metric-chips-select"
+        value={selectedMetric}
+        onChange={e => setMetric(e.target.value as Metric)}
+      >
+        {CHIPS.map(c => (
+          <option key={c.key} value={c.key}>{c.label}</option>
+        ))}
+      </select>
     </div>
   );
 }
