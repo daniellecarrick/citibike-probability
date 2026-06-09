@@ -102,11 +102,10 @@ def get_recommendations(
     departure_minute: int,
     window_minutes: int = 60,
     step_minutes: int = 5,
-    top_n: int = 5,
 ) -> list[dict]:
     """
-    Sweep departure times ±window_minutes around the requested time.
-    Find local maxima of success probability and return top results.
+    Sweep departure times ±window_minutes around the requested time and return
+    all points so the frontend can render a smooth 2-hour probability curve.
     """
     origin = _get_station(conn, origin_id)
     dest = _get_station(conn, dest_id)
@@ -117,14 +116,12 @@ def get_recommendations(
         origin["lat"], origin["lng"], dest["lat"], dest["lng"]
     )
 
-    sweep_range = range(
+    scores: list[dict] = []
+    for dep in range(
         departure_minute - window_minutes,
         departure_minute + window_minutes + step_minutes,
         step_minutes,
-    )
-
-    scores: list[dict] = []
-    for dep in sweep_range:
+    ):
         dep_clamped = dep % (24 * 60)
         arr = (dep_clamped + travel_minutes) % (24 * 60)
 
@@ -137,29 +134,15 @@ def get_recommendations(
 
         dep_h, dep_m = divmod(dep_clamped, 60)
         arr_h, arr_m = divmod(arr, 60)
-        offset = dep - departure_minute
 
         scores.append({
             "departure_minute": dep_clamped,
             "departure_time": f"{dep_h:02d}:{dep_m:02d}",
             "arrival_time": f"{arr_h:02d}:{arr_m:02d}",
-            "offset_minutes": offset,
+            "offset_minutes": dep - departure_minute,
             "success_probability": p_success,
             "bike_probability": p_bike,
             "dock_probability": p_dock,
         })
 
-    # Find local maxima (score > both neighbors)
-    local_maxima = []
-    for i, s in enumerate(scores):
-        if s["success_probability"] is None:
-            continue
-        prev_p = scores[i - 1]["success_probability"] if i > 0 else -1
-        next_p = scores[i + 1]["success_probability"] if i < len(scores) - 1 else -1
-        if (prev_p is None or s["success_probability"] >= prev_p) and \
-           (next_p is None or s["success_probability"] >= next_p):
-            local_maxima.append(s)
-
-    # Sort by probability descending, return top N (excluding exact match if covered by maxima)
-    local_maxima.sort(key=lambda x: x["success_probability"] or 0, reverse=True)
-    return local_maxima[:top_n]
+    return scores
