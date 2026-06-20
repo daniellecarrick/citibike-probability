@@ -3,9 +3,20 @@ import { useCommute } from '../../hooks/useCommute';
 import { useStore } from '../../store';
 import { probabilityToColor, fmtPct } from '../../utils/colorScale';
 import { RecommendationList } from './RecommendationList';
+import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 import type { Station } from '../../types';
 
 const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const DAYS_PILLS = [
+  { letter: 'M', value: 0 },
+  { letter: 'T', value: 1 },
+  { letter: 'W', value: 2 },
+  { letter: 'T', value: 3 },
+  { letter: 'F', value: 4 },
+  { letter: 'S', value: 5 },
+  { letter: 'S', value: 6 },
+] as const;
 
 function formatTime(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -111,6 +122,7 @@ interface Props {
 export function CommutePlanner({ stations }: Props) {
   const { commute, setCommute, selectedDay, selectedTime, setDay, setTime, setMapMode } = useStore();
   const { result, recommendations, loading } = useCommute();
+  const { recent, starred, addRecent, toggleStar, isStarred } = useSavedCommutes();
 
   const [originId, setOriginId] = useState(commute?.originId ?? '');
   const [destId,   setDestId]   = useState(commute?.destId   ?? '');
@@ -124,8 +136,30 @@ export function CommutePlanner({ stations }: Props) {
     }
   }, [commute]);
 
+  function makeSaved() {
+    const o = stations.find(s => s.station_id === originId);
+    const d = stations.find(s => s.station_id === destId);
+    if (!o || !d) return null;
+    return { originId, originName: o.station_name, destId, destName: d.station_name, bikeType, savedAt: Date.now() };
+  }
+
   function handleCalc() {
-    if (originId && destId) setCommute({ originId, destId, bikeType });
+    if (!originId || !destId) return;
+    setCommute({ originId, destId, bikeType });
+    const saved = makeSaved();
+    if (saved) addRecent(saved);
+  }
+
+  function handleStar() {
+    const saved = makeSaved();
+    if (saved) toggleStar(saved);
+  }
+
+  function handleLoadSaved(c: { originId: string; destId: string; bikeType: 'any' | 'classic' | 'ebike' }) {
+    setOriginId(c.originId);
+    setDestId(c.destId);
+    setBikeType(c.bikeType);
+    setCommute({ originId: c.originId, destId: c.destId, bikeType: c.bikeType });
   }
 
   function handleSwap() {
@@ -152,11 +186,40 @@ export function CommutePlanner({ stations }: Props) {
 
   return (
     <>
+      {/* Quick-access: starred + recent commutes */}
+      {(starred.length > 0 || recent.length > 0) && (
+        <div className="saved-commutes-section">
+          {starred.map((c, i) => (
+            <button key={`s${i}`} className="saved-commute-row" onClick={() => handleLoadSaved(c)}>
+              <span className="saved-commute-star">★</span>
+              <span className="saved-commute-route">{c.originName} → {c.destName}</span>
+            </button>
+          ))}
+          {recent.map((c, i) => (
+            <button key={`r${i}`} className="saved-commute-row" onClick={() => handleLoadSaved(c)}>
+              <span className="saved-commute-clock">↺</span>
+              <span className="saved-commute-route">{c.originName} → {c.destName}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Planner card */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <span className="card-title" style={{ marginBottom: 0 }}>Plan your commute</span>
-          <button className="swap-btn" onClick={handleSwap} title="Swap origin and destination">⇅</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {originId && destId && (
+              <button
+                className={`swap-btn${isStarred(originId, destId) ? ' starred' : ''}`}
+                onClick={handleStar}
+                title={isStarred(originId, destId) ? 'Remove from starred' : 'Star this commute'}
+              >
+                {isStarred(originId, destId) ? '★' : '☆'}
+              </button>
+            )}
+            <button className="swap-btn" onClick={handleSwap} title="Swap origin and destination">⇅</button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -177,22 +240,31 @@ export function CommutePlanner({ stations }: Props) {
 
           <div>
             <span className="field-label">Day</span>
-            <select
-              className="field-select"
-              value={selectedDay}
-              onChange={e => setDay(Number(e.target.value) as 0|1|2|3|4|5|6)}
-            >
-              {DAYS_FULL.map((d, i) => <option key={i} value={i}>{d}</option>)}
-            </select>
+            <div className="day-pills-track">
+              {DAYS_PILLS.map(d => (
+                <button
+                  key={d.value}
+                  className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
+                  title={DAYS_FULL[d.value]}
+                  onClick={() => setDay(d.value)}
+                >
+                  {d.letter}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
             <span className="field-label">Departure time</span>
-            <div className="time-stepper">
-              <button className="stepper-btn" onClick={() => setTime((selectedTime - 30 + 1440) % 1440)}>−</button>
-              <span className="stepper-value">{formatTime(selectedTime)}</span>
-              <button className="stepper-btn" onClick={() => setTime((selectedTime + 30) % 1440)}>+</button>
-            </div>
+            <select
+              className="field-select"
+              value={selectedTime}
+              onChange={e => setTime(Number(e.target.value))}
+            >
+              {Array.from({ length: 288 }, (_, i) => i * 5).map(m => (
+                <option key={m} value={m}>{formatTime(m)}</option>
+              ))}
+            </select>
           </div>
 
           <div>

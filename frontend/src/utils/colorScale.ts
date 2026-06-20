@@ -45,13 +45,14 @@ export function probabilityToRGB(
   return scaleRGB(p, SCALES[scaleName] ?? SCALES.vivid);
 }
 
-/** Mapbox GL data-driven expression for circle color. */
-export function mapboxColorExpression(scaleName = 'vivid'): mapboxgl.Expression {
+/** Mapbox GL data-driven expression for circle color.
+ * valueProperty: the GeoJSON feature property to read (default 'probability'; use 'fullness' for % full metric). */
+export function mapboxColorExpression(scaleName = 'vivid', valueProperty = 'probability'): mapboxgl.Expression {
   const scale = SCALES[scaleName] ?? SCALES.vivid;
   const [s0, s1, s2] = scale;
   return [
     'interpolate', ['linear'],
-    ['coalesce', ['get', 'probability'], -1],
+    ['coalesce', ['get', valueProperty], -1],
     -1,  `rgb(${[154,161,173].join(',')})`,  // no data
     0,   `rgb(${s0.join(',')})`,
     0.5, `rgb(${s1.join(',')})`,

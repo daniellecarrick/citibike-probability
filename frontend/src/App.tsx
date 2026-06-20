@@ -24,18 +24,19 @@ function MapView({ stations }: { stations: Station[] }) {
       {/* Left rail */}
       <div className="left-rail">
         <div className="rail-tabs">
+                    <button
+            className={`rail-tab${railTab === 'commute' ? ' active' : ''}`}
+            onClick={() => setRailTab('commute')}
+          >
+            Commute
+          </button>
           <button
             className={`rail-tab${railTab === 'station' ? ' active' : ''}`}
             onClick={() => setRailTab('station')}
           >
             Station Details
           </button>
-          <button
-            className={`rail-tab${railTab === 'commute' ? ' active' : ''}`}
-            onClick={() => setRailTab('commute')}
-          >
-            Commute
-          </button>
+
         </div>
 
         <div className="rail-content">

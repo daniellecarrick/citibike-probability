@@ -1,27 +1,9 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useStore } from '../../store';
-import type { DayOfWeek } from '../../types';
+import { MetricChips } from '../Map/MetricChips';
 
-const DAYS: { letter: string; full: string; value: DayOfWeek }[] = [
-  { letter: 'S', full: 'Sunday',    value: 6 },
-  { letter: 'M', full: 'Monday',    value: 0 },
-  { letter: 'T', full: 'Tuesday',   value: 1 },
-  { letter: 'W', full: 'Wednesday', value: 2 },
-  { letter: 'T', full: 'Thursday',  value: 3 },
-  { letter: 'F', full: 'Friday',    value: 4 },
-  { letter: 'S', full: 'Saturday',  value: 5 },
-];
-
-function formatTime(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  const ampm = h < 12 ? 'AM' : 'PM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
-}
-
+// TODO (revisit ~2025-06-27): surface map hidden while performance is improved.
+// To re-enable: restore the Stations/Surface toggle here and in MobileFilterMenu.
 export function Header() {
-  const { selectedDay, selectedTime, mapMode, setDay, setMapMode } = useStore();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const view = pathname === '/admin' ? 'admin' : 'map';
@@ -41,54 +23,16 @@ export function Header() {
 
       <div className="logo-wordmark">
         <span className="logo-title">Will There Be A Bike?</span>
-        <span className="logo-eyebrow">Citi Bike Commute Forecast · Predictive Model</span>
       </div>
 
       {view === 'map' && (
         <div className="header-controls">
-          {/* Day pills */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span className="day-pills-label">Day</span>
-            <div className="day-pills-track">
-              {DAYS.map(d => (
-                <button
-                  key={d.value}
-                  className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
-                  title={d.full}
-                  onClick={() => setDay(d.value)}
-                >
-                  {d.letter}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Time readout */}
-          <div className="time-readout">
-            <span className="time-readout-eyebrow">Time</span>
-            <span className="time-readout-value">{formatTime(selectedTime)}</span>
-          </div>
-
-          {/* Map mode toggle */}
-          <div className="mode-toggle-track">
-            <button
-              className={`mode-toggle-btn${mapMode === 'stations' ? ' active' : ''}`}
-              onClick={() => setMapMode('stations')}
-            >
-              Stations
-            </button>
-            <button
-              className={`mode-toggle-btn${mapMode === 'surface' ? ' active' : ''}`}
-              onClick={() => setMapMode('surface')}
-            >
-              Surface
-            </button>
-          </div>
+          <MetricChips />
         </div>
       )}
 
       {/* Nav */}
-      <div className={`header-nav`} style={{ marginLeft: view === 'admin' ? 'auto' : 0 }}>
+      <div className="header-nav" style={{ marginLeft: view === 'admin' ? 'auto' : 0 }}>
         <button className={`nav-btn${view === 'map' ? ' active' : ''}`} onClick={() => navigate('/')}>Map</button>
         <button className={`nav-btn${view === 'admin' ? ' active' : ''}`} onClick={() => navigate('/admin')}>Admin</button>
       </div>

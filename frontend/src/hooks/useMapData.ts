@@ -16,6 +16,8 @@ export function useMapData() {
   const apiMetric = METRIC_TO_API[selectedMetric] as 'bikes' | 'ebikes' | 'docks';
   const cacheKey = `${selectedDay}_${apiMetric}`;
   const isFetchingBulk = useRef(false);
+  const selectedTimeRef = useRef(selectedTime);
+  selectedTimeRef.current = selectedTime;
 
   // Increments when the browser comes back online, triggering failed fetches to retry.
   const [retryAt, setRetryAt] = useState(0);
@@ -48,13 +50,15 @@ export function useMapData() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDay, apiMetric, cacheKey, bulkCache, setBulkCache, retryAt]);
 
-  // Fallback single snapshot
+  // Fallback single snapshot — fires once per (day, metric) change, not on every time scrub,
+  // so the bulk fetch and snapshot don't compete with a flood of per-slot requests.
   useEffect(() => {
     if (bulkCache[cacheKey]) return;
     api.map
-      .snapshot(selectedDay as DayOfWeek, selectedTime, apiMetric)
+      .snapshot(selectedDay as DayOfWeek, selectedTimeRef.current, apiMetric)
       .then(setCurrentMapData)
       .catch(console.error);
+  // selectedTimeRef.current is intentionally read inside without being a dep
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDay, selectedTime, apiMetric, retryAt]);
+  }, [selectedDay, apiMetric, cacheKey, retryAt]);
 }

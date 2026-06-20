@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BarHistogram } from '../charts/BarHistogram';
 import { HourLineChart } from '../charts/HourLineChart';
 import { WeekBars } from '../charts/WeekBars';
 import { useStationDetail } from '../../hooks/useStationDetail';
-import { useStore } from '../../store';
+import { useStore, METRIC_TO_API } from '../../store';
 import { probabilityToColor, fmtPct } from '../../utils/colorScale';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -26,15 +26,21 @@ function statusLabel(prob: number | null): { label: string; color: string } {
   return              { label: 'Great',    color };
 }
 
-function placeholderHourSlots(): number[] {
-  return new Array(288).fill(0);
-}
-
 export function StationDetailPanel() {
   const {
     selectedStationId, selectStation, setCommute, setRailTab,
-    selectedTime, selectedDay, focusStress, setFocusStress,
+    selectedTime, selectedDay, selectedMetric, focusStress, setFocusStress,
+    bulkCache,
   } = useStore();
+
+  const cacheKey = `${selectedDay}_${METRIC_TO_API[selectedMetric]}`;
+  const hourValues = useMemo<number[]>(() => {
+    const cached = bulkCache[cacheKey];
+    if (!cached || !selectedStationId) return Array(288).fill(0);
+    return Array.from({ length: 288 }, (_, slot) =>
+      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.probability ?? 0
+    );
+  }, [bulkCache, cacheKey, selectedStationId]);
   const { detail, loading } = useStationDetail();
   const stressRef = useRef<HTMLDivElement>(null);
   const [panelMode, setPanelMode] = useState<'pickup' | 'dropoff'>('pickup');
@@ -153,8 +159,9 @@ export function StationDetailPanel() {
                   ? `${Math.round(bikeProb * 100)}% chance of a bike`
                   : '—')
             }
-            {!isDropoff && detail.distributions.bikes.median !== null
-              ? ` — yet typically only ${detail.distributions.bikes.median.toFixed(1)} on hand`
+            {!isDropoff && bikeProb !== null && bikeProb > 0.5 &&
+             detail.distributions.bikes.median !== null && detail.distributions.bikes.median < 3
+              ? ` — but typically only ${detail.distributions.bikes.median.toFixed(1)} on hand`
               : ''}
           </div>
 
@@ -179,9 +186,11 @@ export function StationDetailPanel() {
               ? (dockProb !== null && dockProb >= 0.5
                   ? "Docks are usually available here at this time."
                   : "Docks can fill up at this hour — consider a nearby station as a backup.")
-              : (stressHigh
-                  ? "There's almost always a bike here — but inventory runs thin, frequently just 1–2 when you arrive."
-                  : "Inventory here is comfortably deep. You're unlikely to be the last one.")}
+              : (bikeProb === null || bikeProb < 0.2
+                  ? "Bikes are rarely available at this time."
+                  : stressHigh
+                    ? "There's almost always a bike here — but inventory runs thin, frequently just 1–2 when you arrive."
+                    : "Inventory here is comfortably deep. You're unlikely to be the last one.")}
           </div>
         </div>
       </div>
@@ -190,7 +199,7 @@ export function StationDetailPanel() {
       <div className="detail-section">
         <div className="detail-section-title">Probability by hour</div>
         <HourLineChart
-          values={placeholderHourSlots()}
+          values={hourValues}
           currentSlot={Math.floor(selectedTime / 5)}
           width={340}
         />

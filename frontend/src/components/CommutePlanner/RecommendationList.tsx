@@ -29,10 +29,9 @@ export function RecommendationList({ recommendations }: Props) {
   // Build points across all recommendations sorted by offset
   const sorted = [...recommendations].sort((a, b) => a.offset_minutes - b.offset_minutes);
 
-  // Fixed 2-hour domain centered on the best departure time
-  const bestOffset = best?.offset_minutes ?? 0;
-  const domainMin = bestOffset - 60;
-  const domainMax = bestOffset + 60;
+  // Fixed domain: ±60 min around the user's selected time (offset 0 = selected time)
+  const domainMin = -60;
+  const domainMax = 60;
   const domainSpan = 120;
 
   const pts = sorted

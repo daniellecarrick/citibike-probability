@@ -4,11 +4,12 @@ import { useStore } from '../store';
 import type { StationDetail, DayOfWeek } from '../types';
 
 export function useStationDetail() {
-  const { selectedStationId, selectedDay, selectedTime } = useStore();
+  const { selectedStationId, selectedDay, selectedTime, animation } = useStore();
   const [detail, setDetail] = useState<StationDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (animation.playing) return;
     if (!selectedStationId) { setDetail(null); return; }
     setLoading(true);
     api.stations
@@ -16,7 +17,7 @@ export function useStationDetail() {
       .then(setDetail)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [selectedStationId, selectedDay, selectedTime]);
+  }, [selectedStationId, selectedDay, selectedTime, animation.playing]);
 
   return { detail, loading };
 }

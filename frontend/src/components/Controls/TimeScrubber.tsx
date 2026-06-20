@@ -1,5 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../../store';
+import type { DayOfWeek } from '../../types';
+
+const DAYS: { letter: string; full: string; value: DayOfWeek }[] = [
+  { letter: 'S', full: 'Sunday', value: 6 },
+  { letter: 'M', full: 'Monday', value: 0 },
+  { letter: 'T', full: 'Tuesday', value: 1 },
+  { letter: 'W', full: 'Wednesday', value: 2 },
+  { letter: 'T', full: 'Thursday', value: 3 },
+  { letter: 'F', full: 'Friday', value: 4 },
+  { letter: 'S', full: 'Saturday', value: 5 },
+];
 
 function formatTime(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -22,7 +33,7 @@ function periodLabel(minutes: number): string {
 }
 
 export function TimeScrubber() {
-  const { selectedTime, animation, setTime, setPlaying, stepTime } = useStore();
+  const { selectedDay, selectedTime, animation, setDay, setTime, setPlaying, stepTime } = useStore();
   const rafRef = useRef<number | null>(null);
   const frameCount = useRef(0);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -78,13 +89,25 @@ export function TimeScrubber() {
     <div className="time-scrubber-overlay">
       <div className="scrubber-top-row">
         <span className="scrubber-period">{periodLabel(selectedTime)}</span>
-        <div className="scrubber-legend">
-          <span>Poor</span>
-          <div className="scrubber-gradient-bar" />
-          <span>Excellent</span>
+        <div className="scrubber-day-row">
+          <span className="day-pills-label">Day</span>
+          <div className="day-pills-track">
+            {DAYS.map(d => (
+              <button
+                key={d.value}
+                className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
+                title={d.full}
+                onClick={() => setDay(d.value)}
+              >
+                {d.letter}
+              </button>
+            ))}
+          </div>
         </div>
         <span className="scrubber-time">{formatTime(selectedTime)}</span>
       </div>
+
+
 
       <div className="scrubber-track-row">
         <button className="play-btn" onClick={() => setPlaying(!animation.playing)}>

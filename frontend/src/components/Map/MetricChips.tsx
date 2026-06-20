@@ -1,41 +1,29 @@
 import { useStore, type Metric } from '../../store';
 
-const CHIPS: { key: Metric; label: string }[] = [
-  { key: 'bike',        label: 'Bike Availability' },
-  { key: 'ebike',       label: 'E-Bike Availability' },
-  { key: 'dock',        label: 'Dock Availability' },
-  { key: 'reliability', label: 'Reliability Score' },
-  { key: 'stress',      label: 'Stress Score' },
+const METRICS: { key: Metric; label: string }[] = [
+  { key: 'ebike',    label: 'E-Bike' },
+  { key: 'bike',     label: 'Bike' },
+  { key: 'dock',     label: 'Dock' },
+  { key: 'fullness', label: '% Full' },
 ];
 
 export function MetricChips() {
   const { selectedMetric, setMetric } = useStore();
 
   return (
-    <div className="metric-chips">
-      {/* Desktop: vertical chip list */}
-      <div className="metric-chips-list">
-        {CHIPS.map(c => (
+    <div className="metric-group">
+      <span className="day-pills-label">Availability</span>
+      <div className="mode-toggle-track">
+        {METRICS.map(m => (
           <button
-            key={c.key}
-            className={`metric-chip ${selectedMetric === c.key ? 'active' : 'inactive'}`}
-            onClick={() => setMetric(c.key)}
+            key={m.key}
+            className={`mode-toggle-btn${selectedMetric === m.key ? ' active' : ''}`}
+            onClick={() => setMetric(m.key)}
           >
-            {c.label}
+            {m.label}
           </button>
         ))}
       </div>
-
-      {/* Mobile: compact select */}
-      <select
-        className="metric-chips-select"
-        value={selectedMetric}
-        onChange={e => setMetric(e.target.value as Metric)}
-      >
-        {CHIPS.map(c => (
-          <option key={c.key} value={c.key}>{c.label}</option>
-        ))}
-      </select>
     </div>
   );
 }

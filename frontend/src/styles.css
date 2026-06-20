@@ -94,6 +94,7 @@ button { cursor: pointer; font-family: inherit; }
   flex-direction: column;
   gap: 1px;
   white-space: nowrap;
+  min-width: 0;
 }
 .logo-title {
   font-family: var(--serif);
@@ -118,6 +119,7 @@ button { cursor: pointer; font-family: inherit; }
   align-items: center;
   gap: 14px;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* Day pills */
@@ -136,7 +138,7 @@ button { cursor: pointer; font-family: inherit; }
   gap: 2px;
 }
 .day-pill {
-  width: 30px; height: 28px;
+  flex: 1; height: 28px;
   border: none;
   background: transparent;
   border-radius: 7px;
@@ -151,33 +153,6 @@ button { cursor: pointer; font-family: inherit; }
   color: var(--ink);
   font-weight: 700;
   box-shadow: 0 1px 3px rgba(20,24,40,.1);
-}
-
-/* Time readout */
-.time-readout {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: var(--control-track);
-  border-radius: var(--r-pill);
-  padding: 5px 14px;
-  gap: 1px;
-  white-space: nowrap;
-}
-.time-readout-eyebrow {
-  font-family: var(--mono);
-  font-size: 8px;
-  color: var(--text-faint);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  line-height: 1;
-}
-.time-readout-value {
-  font-family: var(--serif);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ink);
-  line-height: 1;
 }
 
 /* Mode toggle */
@@ -475,7 +450,7 @@ button { cursor: pointer; font-family: inherit; }
 .swap-btn:hover { border-color: var(--ink); color: var(--ink); }
 
 /* ─── Forecast card ─────────────────────────────────────────────── */
-.forecast-card { overflow: hidden; padding: 0; }
+.forecast-card { padding: 0; }
 .forecast-header {
   background: linear-gradient(180deg,#fafbfc,#fff);
   padding: 16px 18px;
@@ -775,62 +750,45 @@ button { cursor: pointer; font-family: inherit; }
 .nearby-dist { font-family: var(--mono); font-size: 10px; color: var(--text-faint); white-space: nowrap; }
 .nearby-pct { font-size: 13px; font-weight: 600; white-space: nowrap; }
 
-/* ─── Metric chips (map overlay) ────────────────────────────────── */
-.metric-chips {
-  position: absolute;
-  top: 16px; left: 16px;
-  z-index: 10;
-}
-.metric-chips-list {
+/* ─── Saved commutes quick-access ───────────────────────────────── */
+.saved-commutes-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  padding: 0 2px;
 }
-.metric-chip {
-  padding: 7px 14px;
-  border-radius: var(--r-pill);
-  border: none;
-  font-family: var(--sans);
-  font-size: 12px;
-  font-weight: 600;
+.saved-commute-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
   cursor: pointer;
-  transition: all .15s;
-  backdrop-filter: blur(8px);
+  text-align: left;
+  transition: background .12s;
+  width: 100%;
+}
+.saved-commute-row:hover { background: var(--control-track); }
+.saved-commute-star { color: #f5b800; font-size: 13px; flex-shrink: 0; }
+.saved-commute-clock { color: var(--text-muted); font-size: 13px; flex-shrink: 0; }
+.saved-commute-route {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.metric-chip.inactive {
-  background: rgba(255,255,255,0.9);
-  color: var(--text-muted);
-  box-shadow: var(--shadow-float);
-}
-.metric-chip.active {
-  background: var(--ink);
-  color: #fff;
-  box-shadow: var(--shadow-float);
-}
-.metric-chips-select { display: none; }
+.swap-btn.starred { color: #f5b800; }
 
-@media (max-width: 800px) {
-  .metric-chips-list  { display: none; }
-  .metric-chips-select {
-    display: block;
-    height: 36px;
-    padding: 0 30px 0 12px;
-    border: none;
-    border-radius: var(--r-pill);
-    background: var(--ink);
-    color: #fff;
-    font-family: var(--sans);
-    font-size: 12px;
-    font-weight: 600;
-    box-shadow: var(--shadow-float);
-    backdrop-filter: blur(8px);
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
-    cursor: pointer;
-  }
+/* ─── Metric group (header control) ─────────────────────────────── */
+.metric-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
 }
 
 /* ─── Time Scrubber (map overlay) ───────────────────────────────── */
@@ -853,6 +811,13 @@ button { cursor: pointer; font-family: inherit; }
   justify-content: space-between;
   margin-bottom: 10px;
   gap: 12px;
+}
+.scrubber-day-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 .scrubber-period {
   font-family: var(--serif);
@@ -912,7 +877,7 @@ button { cursor: pointer; font-family: inherit; }
 .scrubber-fill {
   height: 100%;
   border-radius: 3px;
-  background: linear-gradient(to right, #ff2d78, #8b3df5, #1fa2ff);
+  background:  #1fa2ff;
   pointer-events: none;
 }
 .scrubber-handle {
@@ -955,6 +920,41 @@ button { cursor: pointer; font-family: inherit; }
 .tooltip-hood { font-family: var(--mono); font-size: 9.5px; color: var(--text-faint); letter-spacing: 0.04em; margin-bottom: 8px; }
 .tooltip-metric { font-family: var(--serif); font-size: 32px; font-weight: 600; line-height: 1; margin-bottom: 8px; }
 .tooltip-stats { font-size: 11px; color: var(--text-muted); }
+
+/* ─── Station hover tooltip ─────────────────────────────────────── */
+.station-hover-tooltip {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  padding: 12px 14px 9px;
+  box-shadow: var(--shadow-tooltip);
+  width: 220px;
+}
+.hover-tooltip-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hover-tooltip-chart {
+  display: block;
+  width: 100%;
+  height: 52px;
+  margin-bottom: 3px;
+}
+.hover-tooltip-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--text-faint);
+}
 
 /* ─── Bar histogram (Station Detail) ───────────────────────────── */
 .bar-histogram { display: flex; align-items: flex-end; gap: 4px; height: 70px; }
@@ -1350,8 +1350,5 @@ button { cursor: pointer; font-family: inherit; }
     z-index: 180;
     letter-spacing: -0.01em;
   }
-
-  /* Keep metric chips from being obscured by the FAB */
-  .metric-chips-overlay { bottom: 90px; }
 
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { BulkMapData, DayOfWeek, StationProbability } from './types';
 
-export type Metric = 'bike' | 'ebike' | 'dock' | 'reliability' | 'stress';
+export type Metric = 'bike' | 'ebike' | 'dock' | 'reliability' | 'stress' | 'fullness';
 export type MapMode = 'stations' | 'surface';
 export type BikeType = 'any' | 'classic' | 'ebike';
 export type RailTab = 'station' | 'commute';
@@ -13,6 +13,7 @@ export const METRIC_TO_API: Record<Metric, string> = {
   dock:        'docks',
   reliability: 'bikes',   // reliability uses bike data as proxy for now
   stress:      'bikes',   // stress uses bike data, inverted in display
+  fullness:    'bikes',   // fullness = mean_inventory / capacity, uses bike data
 };
 
 interface CommutePlan {
@@ -58,14 +59,24 @@ interface AppState {
   stepTime: () => void;
 }
 
+function getCurrentDayTime(): { day: DayOfWeek; minutes: number } {
+  const now = new Date();
+  // JS getDay(): 0=Sun,1=Mon...6=Sat. Frontend uses 0=Mon...6=Sun. Convert:
+  const day = ((now.getDay() + 6) % 7) as DayOfWeek;
+  const minutes = Math.floor((now.getHours() * 60 + now.getMinutes()) / 5) * 5;
+  return { day, minutes };
+}
+
+const { day: initialDay, minutes: initialMinutes } = getCurrentDayTime();
+
 export const useStore = create<AppState>((set, get) => ({
-  selectedDay: 2,           // Tuesday default
-  selectedTime: 510,        // 8:30 AM default
-  selectedMetric: 'bike',
-  mapMode: 'surface',
+  selectedDay: initialDay,
+  selectedTime: initialMinutes,
+  selectedMetric: 'ebike',
+  mapMode: 'stations',
   selectedStationId: null,
   commute: null,
-  railTab: 'station',
+  railTab: 'commute',
   focusStress: false,
   animation: { playing: false },
   currentMapData: [],

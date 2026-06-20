@@ -1,6 +1,13 @@
 import { useState } from 'react';
-import { useStore } from '../../store';
+import { useStore, type Metric } from '../../store';
 import type { DayOfWeek } from '../../types';
+
+const METRICS: { key: Metric; label: string }[] = [
+  { key: 'ebike',    label: 'E-Bike' },
+  { key: 'bike',     label: 'Bike' },
+  { key: 'dock',     label: 'Dock' },
+  { key: 'fullness', label: '% Full' },
+];
 
 const DAYS: { letter: string; full: string; value: DayOfWeek }[] = [
   { letter: 'S', full: 'Sunday',    value: 6 },
@@ -22,7 +29,7 @@ function formatTime(minutes: number): string {
 
 export function MobileFilterMenu() {
   const [open, setOpen] = useState(false);
-  const { selectedDay, selectedTime, mapMode, setDay, setTime, setMapMode } = useStore();
+  const { selectedDay, selectedTime, selectedMetric, setDay, setTime, setMetric } = useStore();
 
   return (
     <div className="mobile-filter-wrap">
@@ -31,20 +38,17 @@ export function MobileFilterMenu() {
           <div className="mobile-filter-backdrop" onClick={() => setOpen(false)} />
           <div className="mobile-filter-panel">
             <div className="mobile-filter-section">
-              <span className="mobile-filter-label">View</span>
+              <span className="mobile-filter-label">Availability</span>
               <div className="mode-toggle-track">
-                <button
-                  className={`mode-toggle-btn${mapMode === 'stations' ? ' active' : ''}`}
-                  onClick={() => setMapMode('stations')}
-                >
-                  Stations
-                </button>
-                <button
-                  className={`mode-toggle-btn${mapMode === 'surface' ? ' active' : ''}`}
-                  onClick={() => setMapMode('surface')}
-                >
-                  Surface
-                </button>
+                {METRICS.map(m => (
+                  <button
+                    key={m.key}
+                    className={`mode-toggle-btn${selectedMetric === m.key ? ' active' : ''}`}
+                    onClick={() => setMetric(m.key)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
               </div>
             </div>
 
