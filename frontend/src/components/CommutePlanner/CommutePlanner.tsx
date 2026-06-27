@@ -4,7 +4,10 @@ import { useStore } from '../../store';
 import { probabilityToColor, fmtPct } from '../../utils/colorScale';
 import { RecommendationList } from './RecommendationList';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
+import type { SavedCommute } from '../../hooks/useSavedCommutes';
 import type { Station } from '../../types';
+
+type SavedItem = SavedCommute & { kind: 'starred' | 'recent' };
 
 const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -122,11 +125,14 @@ interface Props {
 export function CommutePlanner({ stations }: Props) {
   const { commute, setCommute, selectedDay, selectedTime, setDay, setTime, setMapMode } = useStore();
   const { result, recommendations, loading } = useCommute();
-  const { recent, starred, addRecent, toggleStar, isStarred } = useSavedCommutes();
+  const { recent, starred, addRecent, toggleStar, isStarred, removeRecent } = useSavedCommutes();
 
   const [originId, setOriginId] = useState(commute?.originId ?? '');
   const [destId,   setDestId]   = useState(commute?.destId   ?? '');
   const [bikeType, setBikeType] = useState<'any' | 'classic' | 'ebike'>('any');
+  const [savedOpen, setSavedOpen] = useState(false);
+
+  const savedWrapRef = useRef<HTMLDivElement>(null);
 
   // Sync if commute changes externally (e.g. from station panel)
   useEffect(() => {
@@ -135,6 +141,23 @@ export function CommutePlanner({ stations }: Props) {
       setDestId(commute.destId);
     }
   }, [commute]);
+
+  useEffect(() => {
+    if (!savedOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (savedWrapRef.current && !savedWrapRef.current.contains(e.target as Node)) {
+        setSavedOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [savedOpen]);
+
+  const starredItems: SavedItem[] = starred.map(c => ({ ...c, kind: 'starred' as const }));
+  const recentItems: SavedItem[]  = recent
+    .filter(c => !isStarred(c.originId, c.destId))
+    .map(c => ({ ...c, kind: 'recent' as const }));
+  const allSaved: SavedItem[] = [...starredItems, ...recentItems].slice(0, 5);
 
   function makeSaved() {
     const o = stations.find(s => s.station_id === originId);
@@ -162,6 +185,12 @@ export function CommutePlanner({ stations }: Props) {
     setCommute({ originId: c.originId, destId: c.destId, bikeType: c.bikeType });
   }
 
+  function handleRemoveSaved(c: SavedItem, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (c.kind === 'starred') toggleStar(c);
+    else removeRecent(c.originId, c.destId);
+  }
+
   function handleSwap() {
     setOriginId(destId);
     setDestId(originId);
@@ -187,20 +216,43 @@ export function CommutePlanner({ stations }: Props) {
   return (
     <>
       {/* Quick-access: starred + recent commutes */}
-      {(starred.length > 0 || recent.length > 0) && (
-        <div className="saved-commutes-section">
-          {starred.map((c, i) => (
-            <button key={`s${i}`} className="saved-commute-row" onClick={() => handleLoadSaved(c)}>
-              <span className="saved-commute-star">★</span>
-              <span className="saved-commute-route">{c.originName} → {c.destName}</span>
-            </button>
-          ))}
-          {recent.map((c, i) => (
-            <button key={`r${i}`} className="saved-commute-row" onClick={() => handleLoadSaved(c)}>
-              <span className="saved-commute-clock">↺</span>
-              <span className="saved-commute-route">{c.originName} → {c.destName}</span>
-            </button>
-          ))}
+      {allSaved.length > 0 && (
+        <div className="saved-commutes-section" ref={savedWrapRef}>
+          {allSaved.length <= 2 ? (
+            allSaved.map((c, i) => (
+              <div key={i} className="saved-commute-row">
+                <button className="saved-commute-load" onClick={() => handleLoadSaved(c)}>
+                  <span className={c.kind === 'starred' ? 'saved-commute-star' : 'saved-commute-clock'}>
+                    {c.kind === 'starred' ? '★' : '↺'}
+                  </span>
+                  <span className="saved-commute-route">{c.originName} → {c.destName}</span>
+                </button>
+                <button className="saved-commute-remove" onClick={e => handleRemoveSaved(c, e)} aria-label="Remove">×</button>
+              </div>
+            ))
+          ) : (
+            <div className="saved-dropdown">
+              <button className="saved-dropdown-trigger" onClick={() => setSavedOpen(o => !o)}>
+                <span>Saved routes · {allSaved.length}</span>
+                <span className={`saved-dropdown-chevron${savedOpen ? ' open' : ''}`}>▾</span>
+              </button>
+              {savedOpen && (
+                <div className="saved-dropdown-panel">
+                  {allSaved.map((c, i) => (
+                    <div key={i} className="saved-commute-row">
+                      <button className="saved-commute-load" onClick={() => { handleLoadSaved(c); setSavedOpen(false); }}>
+                        <span className={c.kind === 'starred' ? 'saved-commute-star' : 'saved-commute-clock'}>
+                          {c.kind === 'starred' ? '★' : '↺'}
+                        </span>
+                        <span className="saved-commute-route">{c.originName} → {c.destName}</span>
+                      </button>
+                      <button className="saved-commute-remove" onClick={e => handleRemoveSaved(c, e)} aria-label="Remove">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

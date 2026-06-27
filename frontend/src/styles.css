@@ -759,18 +759,39 @@ button { cursor: pointer; font-family: inherit; }
 }
 .saved-commute-row {
   display: flex;
+  align-items: stretch;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.saved-commute-load {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  background: none;
+  border: none;
   cursor: pointer;
   text-align: left;
   transition: background .12s;
-  width: 100%;
 }
-.saved-commute-row:hover { background: var(--control-track); }
+.saved-commute-load:hover { background: var(--control-track); border-radius: 8px 0 0 8px; }
+.saved-commute-remove {
+  flex-shrink: 0;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 15px;
+  cursor: pointer;
+  border-radius: 0 8px 8px 0;
+  transition: background .1s, color .1s;
+}
+.saved-commute-remove:hover { background: var(--control-track); color: var(--ink); }
 .saved-commute-star { color: #f5b800; font-size: 13px; flex-shrink: 0; }
 .saved-commute-clock { color: var(--text-muted); font-size: 13px; flex-shrink: 0; }
 .saved-commute-route {
@@ -781,6 +802,41 @@ button { cursor: pointer; font-family: inherit; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.saved-dropdown { position: relative; }
+.saved-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 8px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  transition: background .12s;
+}
+.saved-dropdown-trigger:hover { background: var(--control-track); }
+.saved-dropdown-chevron { color: var(--text-muted); transition: transform .15s; margin-left: 6px; }
+.saved-dropdown-chevron.open { transform: rotate(180deg); }
+.saved-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.1);
+  overflow: hidden;
+}
+.saved-dropdown-panel .saved-commute-row { border-radius: 0; }
+.saved-dropdown-panel .saved-commute-row + .saved-commute-row {
+  border-top: 1px solid var(--card-border);
+}
 .swap-btn.starred { color: #f5b800; }
 
 /* ─── Metric group (header control) ─────────────────────────────── */
@@ -789,6 +845,24 @@ button { cursor: pointer; font-family: inherit; }
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
+}
+.header-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 2px;
+}
+.header-legend-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.header-legend-bar {
+  width: 56px !important;
 }
 
 /* ─── Time Scrubber (map overlay) ───────────────────────────────── */
@@ -1045,7 +1119,46 @@ button { cursor: pointer; font-family: inherit; }
 /* ─── Misc ──────────────────────────────────────────────────────── */
 .loading { color: var(--text-faint); font-size: 13px; padding: 24px; text-align: center; }
 
+/* ─── Map loading overlays ──────────────────────────────────────── */
+.map-loading-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  z-index: 10;
+  overflow: hidden;
+  pointer-events: none;
+}
+.map-loading-bar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -60%; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, #1fa2ff, #8b3df5, #ff2d78, transparent);
+  animation: mapLoadingSlide 1.4s ease-in-out infinite;
+}
+
+.map-loading-spinner {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 3px solid #e8eaed;
+  border-top-color: #1fa2ff;
+  border-right-color: #8b3df5;
+  border-bottom-color: #ff2d78;
+  animation: mapSpin 0.75s linear infinite;
+  z-index: 10;
+  pointer-events: none;
+}
+
 /* ─── Keyframes ─────────────────────────────────────────────────── */
+@keyframes mapLoadingSlide {
+  0%   { left: -60%; }
+  100% { left: 160%; }
+}
+@keyframes mapSpin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
 @keyframes slideIn {
   from { transform: translateX(28px); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }

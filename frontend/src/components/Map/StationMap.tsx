@@ -26,7 +26,7 @@ export function StationMap({ data }: Props) {
   const commuteAnimRef = useRef<number | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [hoveredStation, setHoveredStation] = useState<{ id: string; name: string } | null>(null);
-  const { mapMode, selectStation, selectedStationId, selectedMetric, commute } = useStore();
+  const { mapMode, selectStation, selectedStationId, selectedMetric, commute, mapDataLoading } = useStore();
 
   function stopCommuteAnim() {
     if (commuteAnimRef.current !== null) {
@@ -321,6 +321,9 @@ export function StationMap({ data }: Props) {
       {mapMode === 'surface' && map.current && (
         <HeatSurface map={map.current} data={data} />
       )}
+
+      {mapDataLoading && data.length > 0 && <div className="map-loading-bar" />}
+      {mapDataLoading && data.length === 0 && <div className="map-loading-spinner" />}
 
       <StationHoverTooltip station={hoveredStation} tooltipRef={tooltipRef} />
       <TimeScrubber />

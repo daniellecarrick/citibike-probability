@@ -59,16 +59,21 @@ export function StationHoverTooltip({ station, tooltipRef }: Props) {
         preserveAspectRatio="none"
       >
         <defs>
-          <linearGradient id="sht-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1fa2ff" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#1fa2ff" stopOpacity="0" />
+          <linearGradient id="sht-line" x1="0" y1="4" x2="0" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"   stopColor="#1fa2ff" />
+            <stop offset="50%"  stopColor="#8b3df5" />
+            <stop offset="100%" stopColor="#ff2d78" />
+          </linearGradient>
+          <linearGradient id="sht-fill" x1="0" y1="4" x2="0" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"   stopColor="#1fa2ff" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="#ff2d78" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={areaD} fill="url(#sht-fill)" />
         <path
           d={linePath}
           fill="none"
-          stroke="#1fa2ff"
+          stroke="url(#sht-line)"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"

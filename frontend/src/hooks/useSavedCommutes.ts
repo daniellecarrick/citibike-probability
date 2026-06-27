@@ -63,5 +63,14 @@ export function useSavedCommutes() {
     return starred.some(c => commuteKey(c.originId, c.destId) === commuteKey(originId, destId));
   }
 
-  return { recent, starred, addRecent, toggleStar, isStarred };
+  function removeRecent(originId: string, destId: string) {
+    setRecent(prev => {
+      const key = commuteKey(originId, destId);
+      const updated = prev.filter(c => commuteKey(c.originId, c.destId) !== key);
+      writeLS(RECENT_KEY, updated);
+      return updated;
+    });
+  }
+
+  return { recent, starred, addRecent, toggleStar, isStarred, removeRecent };
 }

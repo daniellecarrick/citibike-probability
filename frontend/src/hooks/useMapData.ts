@@ -11,6 +11,7 @@ export function useMapData() {
     bulkCache,
     setBulkCache,
     setCurrentMapData,
+    setMapDataLoading,
   } = useStore();
 
   const apiMetric = METRIC_TO_API[selectedMetric] as 'bikes' | 'ebikes' | 'docks';
@@ -39,16 +40,18 @@ export function useMapData() {
 
   // Pre-fetch bulk data
   useEffect(() => {
-    if (bulkCache[cacheKey] || isFetchingBulk.current) return;
+    if (bulkCache[cacheKey]) { setMapDataLoading(false); return; }
+    if (isFetchingBulk.current) return;
     isFetchingBulk.current = true;
+    setMapDataLoading(true);
     api.map
       .bulk(selectedDay as DayOfWeek, apiMetric)
       .then(data => setBulkCache(cacheKey, data))
       .catch(console.error)
-      .finally(() => { isFetchingBulk.current = false; });
+      .finally(() => { isFetchingBulk.current = false; setMapDataLoading(false); });
   // retryAt is intentionally included so a network recovery re-triggers this
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDay, apiMetric, cacheKey, bulkCache, setBulkCache, retryAt]);
+  }, [selectedDay, apiMetric, cacheKey, bulkCache, setBulkCache, setMapDataLoading, retryAt]);
 
   // Fallback single snapshot — fires once per (day, metric) change, not on every time scrub,
   // so the bulk fetch and snapshot don't compete with a flood of per-slot requests.

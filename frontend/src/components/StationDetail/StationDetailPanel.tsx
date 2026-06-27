@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BarHistogram } from '../charts/BarHistogram';
 import { HourLineChart } from '../charts/HourLineChart';
-import { WeekBars } from '../charts/WeekBars';
 import { useStationDetail } from '../../hooks/useStationDetail';
 import { useStore, METRIC_TO_API } from '../../store';
 import { probabilityToColor, fmtPct } from '../../utils/colorScale';
@@ -28,7 +27,7 @@ function statusLabel(prob: number | null): { label: string; color: string } {
 
 export function StationDetailPanel() {
   const {
-    selectedStationId, selectStation, setCommute, setRailTab,
+    selectedStationId, selectStation, commute, setCommute, setRailTab,
     selectedTime, selectedDay, selectedMetric, focusStress, setFocusStress,
     bulkCache,
   } = useStore();
@@ -87,16 +86,15 @@ export function StationDetailPanel() {
   const dockColor   = probabilityToColor(dockProb);
 
   const activeDist = isDropoff ? detail.distributions.docks : detail.distributions.bikes;
-  const weekValues = new Array(7).fill(bikeProb ?? 0);
-
   function handleSetOrigin() {
     setPanelMode('pickup');
-    setCommute(null);
+    setCommute({ originId: selectedStationId!, destId: commute?.destId ?? '', bikeType: commute?.bikeType ?? 'any' });
     setRailTab('commute');
   }
 
   function handleSetDest() {
     setPanelMode('dropoff');
+    setCommute({ originId: commute?.originId ?? '', destId: selectedStationId!, bikeType: commute?.bikeType ?? 'any' });
     setRailTab('commute');
   }
 
@@ -164,18 +162,6 @@ export function StationDetailPanel() {
               ? ` — but typically only ${detail.distributions.bikes.median.toFixed(1)} on hand`
               : ''}
           </div>
-
-          <div className="pct-band">
-            <div
-              className="pct-band-fill"
-              style={{
-                left:  `${(activeDist.p25 ?? 0) / (detail.capacity ?? 20) * 100}%`,
-                width: `${((activeDist.p75 ?? 0) - (activeDist.p25 ?? 0)) / (detail.capacity ?? 20) * 100}%`,
-                background: isDropoff ? dockColor : stressColor,
-                opacity: 0.4,
-              }}
-            />
-          </div>
           <div className="pct-band-labels">
             <span>Quietest</span>
             <span>{isDropoff ? 'Typical docks' : 'Typical now'}</span>
@@ -211,13 +197,7 @@ export function StationDetailPanel() {
         <BarHistogram histogram={activeDist.histogram} />
       </div>
 
-      {/* 4. Probability by day of week */}
-      <div className="detail-section">
-        <div className="detail-section-title">By day of week</div>
-        <WeekBars values={weekValues} currentDay={selectedDay} />
-      </div>
-
-      {/* 5. Nearby stations */}
+      {/* 4. Nearby stations */}
       <div className="detail-section">
         <div className="detail-section-title">Nearby alternatives</div>
         {detail.nearby_stations.map(s => {

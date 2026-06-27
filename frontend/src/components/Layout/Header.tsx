@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MetricChips } from '../Map/MetricChips';
+import logoSrc from '../../images/logo.png';
 
 // TODO (revisit ~2025-06-27): surface map hidden while performance is improved.
 // To re-enable: restore the Stations/Surface toggle here and in MobileFilterMenu.
@@ -12,13 +13,7 @@ export function Header() {
     <header className="header">
       {/* Logo */}
       <div className="logo-mark" aria-hidden>
-        <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
-          <circle cx="4"  cy="12" r="3" stroke="white" strokeWidth="1.5" />
-          <circle cx="16" cy="12" r="3" stroke="white" strokeWidth="1.5" />
-          <path d="M4 12L8 5h5l3 7" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
-          <path d="M8 5h5" stroke="white" strokeWidth="1.5" />
-          <circle cx="16" cy="4" r="1.5" fill="#1fa2ff" />
-        </svg>
+        <img src={logoSrc} alt="" width="34" height="34" style={{ display: 'block', borderRadius: 10, objectFit: 'cover' }} />
       </div>
 
       <div className="logo-wordmark">
@@ -28,6 +23,14 @@ export function Header() {
       {view === 'map' && (
         <div className="header-controls">
           <MetricChips />
+          <div className="metric-group header-legend-group">
+            <span className="day-pills-label">Scale</span>
+            <div className="header-legend">
+              <span className="header-legend-label">Low</span>
+              <div className="scrubber-gradient-bar header-legend-bar" />
+              <span className="header-legend-label">High</span>
+            </div>
+          </div>
         </div>
       )}
 

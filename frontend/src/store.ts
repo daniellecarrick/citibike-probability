@@ -43,6 +43,7 @@ interface AppState {
   // Data cache
   currentMapData: StationProbability[];
   bulkCache: Partial<Record<string, BulkMapData>>;
+  mapDataLoading: boolean;
 
   // Actions
   setDay: (day: DayOfWeek) => void;
@@ -56,6 +57,7 @@ interface AppState {
   setPlaying: (playing: boolean) => void;
   setCurrentMapData: (data: StationProbability[]) => void;
   setBulkCache: (key: string, data: BulkMapData) => void;
+  setMapDataLoading: (v: boolean) => void;
   stepTime: () => void;
 }
 
@@ -81,6 +83,7 @@ export const useStore = create<AppState>((set, get) => ({
   animation: { playing: false },
   currentMapData: [],
   bulkCache: {},
+  mapDataLoading: false,
 
   setDay: (day) => set({ selectedDay: day }),
   setTime: (minutes) => set({ selectedTime: minutes }),
@@ -93,6 +96,7 @@ export const useStore = create<AppState>((set, get) => ({
   setPlaying: (playing) => set((s) => ({ animation: { ...s.animation, playing } })),
   setCurrentMapData: (data) => set({ currentMapData: data }),
   setBulkCache: (key, data) => set((s) => ({ bulkCache: { ...s.bulkCache, [key]: data } })),
+  setMapDataLoading: (v) => set({ mapDataLoading: v }),
 
   stepTime: () => {
     const { selectedTime } = get();

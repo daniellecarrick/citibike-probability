@@ -10,7 +10,7 @@ export function useCommute() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!commute) { setResult(null); setRecommendations([]); return; }
+    if (!commute || !commute.originId || !commute.destId) { setResult(null); setRecommendations([]); return; }
     setLoading(true);
     const { originId, destId } = commute;
     Promise.all([
