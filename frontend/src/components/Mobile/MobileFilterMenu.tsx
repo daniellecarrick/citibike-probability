@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore, type Metric } from '../../store';
 import type { DayOfWeek } from '../../types';
+import { MethodologyModal } from '../Methodology/MethodologyModal';
 
 const METRICS: { key: Metric; label: string }[] = [
   { key: 'ebike',    label: 'E-Bike' },
@@ -29,14 +30,24 @@ function formatTime(minutes: number): string {
 
 export function MobileFilterMenu() {
   const [open, setOpen] = useState(false);
+  const [methodologyOpen, setMethodologyOpen] = useState(false);
   const { selectedDay, selectedTime, selectedMetric, setDay, setTime, setMetric } = useStore();
 
   return (
     <div className="mobile-filter-wrap">
+      {methodologyOpen && <MethodologyModal onClose={() => setMethodologyOpen(false)} />}
+
       {open && (
         <>
           <div className="mobile-filter-backdrop" onClick={() => setOpen(false)} />
           <div className="mobile-filter-panel">
+            <button
+              className="mobile-methodology-link"
+              onClick={() => { setMethodologyOpen(true); setOpen(false); }}
+            >
+              How is this calculated?
+            </button>
+
             <div className="mobile-filter-section">
               <span className="mobile-filter-label">Availability</span>
               <div className="mode-toggle-track">

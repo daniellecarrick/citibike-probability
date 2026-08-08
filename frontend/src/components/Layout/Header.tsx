@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MetricChips } from '../Map/MetricChips';
+import { MethodologyModal } from '../Methodology/MethodologyModal';
 import logoSrc from '../../images/logo.png';
 
 // TODO (revisit ~2025-06-27): surface map hidden while performance is improved.
@@ -8,6 +10,7 @@ export function Header() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const view = pathname === '/admin' ? 'admin' : 'map';
+  const [methodologyOpen, setMethodologyOpen] = useState(false);
 
   return (
     <header className="header">
@@ -36,9 +39,12 @@ export function Header() {
 
       {/* Nav */}
       <div className="header-nav" style={{ marginLeft: view === 'admin' ? 'auto' : 0 }}>
+        <button className="nav-btn" onClick={() => setMethodologyOpen(true)}>Methodology</button>
         <button className={`nav-btn${view === 'map' ? ' active' : ''}`} onClick={() => navigate('/')}>Map</button>
         <button className={`nav-btn${view === 'admin' ? ' active' : ''}`} onClick={() => navigate('/admin')}>Admin</button>
       </div>
+
+      {methodologyOpen && <MethodologyModal onClose={() => setMethodologyOpen(false)} />}
     </header>
   );
 }
