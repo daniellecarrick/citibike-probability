@@ -88,8 +88,19 @@ export interface Recommendation {
   dock_probability: number | null;
 }
 
-// Bulk animation data: slot_index (0-287) → station probabilities
-export type BulkMapData = Record<string, StationProbability[]>;
+// Slim per-slot entry from /api/map/bulk — station_id only, no name/lat/lng/
+// capacity (those are static and already available from /api/stations; the
+// bulk endpoint omits them to avoid repeating them across all 288 slots).
+export interface SlotProbability {
+  station_id: string;
+  probability: number | null;
+  mean_inventory: number | null;
+  sample_count: number;
+  stress_score: number | null;
+}
+
+// Bulk animation data: slot_index (0-287) → slim station probabilities
+export type BulkMapData = Record<string, SlotProbability[]>;
 
 // Admin types
 export interface AdminSummary {

@@ -2,9 +2,10 @@ import sqlite3
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import ORJSONResponse
 
 from analytics.probability import Metric, get_all_stations_probability, get_bulk_day_probabilities
-from analytics.stress import get_stress_score
+from analytics.stress import get_all_stations_stress
 from database import get_db
 
 router = APIRouter(prefix="/api/map", tags=["map"])
@@ -24,19 +25,19 @@ def get_map_probabilities(
     """Probability + stress score for all stations at a given day/time/metric."""
     stations = get_all_stations_probability(conn, day, time, metric)
 
-    # Augment with stress scores in a single pass
-    result = []
-    for s in stations:
-        stress = get_stress_score(
-            conn, s["station_id"], day, time, metric  # type: ignore[arg-type]
-        ) if s["sample_count"] > 0 else {"stress_score": None}
+    # Single grouped query for all stations' stress scores, not one query per
+    # station — that N+1 pattern was the dominant cost of this endpoint.
+    stress_by_station = get_all_stations_stress(conn, day, time, metric)  # type: ignore[arg-type]
 
-        result.append({
-            **s,
-            "stress_score": stress["stress_score"],
-        })
+    result = [
+        {**s, "stress_score": stress_by_station.get(s["station_id"])}
+        for s in stations
+    ]
 
-    return result
+    # Returning the Response directly skips FastAPI's default jsonable_encoder
+    # pass (which walks every value recursively and is far slower than orjson
+    # on a response this size) in favor of orjson's native serialization.
+    return ORJSONResponse(content=result)
 
 
 @router.get("/bulk")
@@ -48,6 +49,9 @@ def get_bulk_map_probabilities(
     """
     All 288 five-minute time slots for a given day/metric.
     Frontend caches this and scrubs locally for smooth animation.
-    Returns: { slot_index: [station_prob_objects] }
+    Returns: { slot_index: [{ station_id, probability, mean_inventory,
+    sample_count, stress_score }] } — join on station_id against
+    GET /api/stations for name/lat/lng/capacity.
     """
-    return get_bulk_day_probabilities(conn, day, metric)
+    data = get_bulk_day_probabilities(conn, day, metric)
+    return ORJSONResponse(content=data)

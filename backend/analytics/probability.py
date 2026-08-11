@@ -180,6 +180,10 @@ def get_all_stations_probability(
     return result
 
 
+_bulk_cache: dict[tuple, tuple[float, dict[int, list[dict]]]] = {}
+BULK_CACHE_TTL_SECONDS = 300  # matches the collector's 5-minute poll interval
+
+
 def get_bulk_day_probabilities(
     conn: sqlite3.Connection,
     day_of_week: int,
@@ -188,10 +192,43 @@ def get_bulk_day_probabilities(
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
 ) -> dict[int, list[dict]]:
     """
-    All 288 five-minute time slots for a given day/metric.
-    Frontend caches this for smooth animation.
+    All 288 five-minute time slots for a given day/metric, cached in memory.
 
-    Uses a single SQL aggregation instead of 288 per-slot queries.
+    Underlying snapshot data only changes as fast as the collector polls
+    (every 5 min), so a freshly computed result stays valid for that long —
+    cache it so repeat requests (metric switches, other users, page reloads)
+    are instant instead of re-running the full sliding-window pass.
+    """
+    cache_key = (day_of_week, metric, window_minutes, lookback_days)
+    cached = _bulk_cache.get(cache_key)
+    now = time.time()
+    if cached is not None and now - cached[0] < BULK_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    result = _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
+    _bulk_cache[cache_key] = (now, result)
+    return result
+
+
+def _compute_bulk_day_probabilities(
+    conn: sqlite3.Connection,
+    day_of_week: int,
+    metric: Metric,
+    window_minutes: int,
+    lookback_days: int,
+) -> dict[int, list[dict]]:
+    """
+    Uses a single SQL aggregation instead of 288 per-slot queries, then a
+    circular sliding window (not a per-slot recompute) to aggregate the
+    ±window_slots neighbourhood for all 288 target slots in one pass per
+    station — O(288 + window) per station instead of O(288 * window).
+
+    Per-slot entries carry only station_id + the computed numbers, not the
+    static station fields (name/lat/lng/capacity) — those are already
+    available from /api/stations, and repeating them across all 288 slots
+    for ~2,400 stations was inflating this response to well over 100MB.
+    The frontend joins on station_id against the stations list it already
+    has loaded.
     """
     from collections import defaultdict
 
@@ -201,10 +238,7 @@ def get_bulk_day_probabilities(
     since = _since(lookback_days)
     window_slots = window_minutes // 5  # 3 slots for a 15-min window
 
-    station_rows = conn.execute(
-        "SELECT station_id, station_name, lat, lng, capacity FROM stations"
-    ).fetchall()
-    stations = [dict(r) for r in station_rows]
+    station_ids = [r[0] for r in conn.execute("SELECT station_id FROM stations").fetchall()]
 
     # One query: per-station per-raw-slot aggregates for the entire day
     rows = conn.execute(
@@ -230,29 +264,37 @@ def get_bulk_day_probabilities(
             r["total"], r["avail_count"], r["sum_inventory"] or 0.0
         )
 
-    # For each of 288 target slots, aggregate the ±window_slots neighbouring raw slots
-    result: dict[int, list[dict]] = {}
-    for target_slot in range(288):
-        slot_result = []
-        for station in stations:
-            sid = station["station_id"]
-            total = 0
-            avail = 0
-            sum_inv = 0.0
-            for offset in range(-window_slots, window_slots + 1):
-                raw = (target_slot + offset) % 288  # wraps correctly at midnight
-                if raw in slot_data[sid]:
-                    t, a, s = slot_data[sid][raw]
-                    total += t
-                    avail += a
-                    sum_inv += s
-            slot_result.append({
-                **station,
+    result: dict[int, list[dict]] = {slot: [] for slot in range(288)}
+    zero = (0, 0, 0.0)
+
+    for station_id in station_ids:
+        sdata = slot_data.get(station_id, {})
+
+        # Prime the window for target_slot 0: raw slots [-window_slots .. window_slots]
+        total = avail = 0
+        sum_inv = 0.0
+        for offset in range(-window_slots, window_slots + 1):
+            t, a, s = sdata.get(offset % 288, zero)
+            total += t
+            avail += a
+            sum_inv += s
+
+        for target_slot in range(288):
+            if target_slot > 0:
+                # Slide the window forward by one slot: drop the one that fell
+                # off the back, add the one that entered the front.
+                leave_t, leave_a, leave_s = sdata.get((target_slot - 1 - window_slots) % 288, zero)
+                enter_t, enter_a, enter_s = sdata.get((target_slot + window_slots) % 288, zero)
+                total += enter_t - leave_t
+                avail += enter_a - leave_a
+                sum_inv += enter_s - leave_s
+
+            result[target_slot].append({
+                "station_id": station_id,
                 "probability": (avail / total) if total > 0 else None,
                 "mean_inventory": (sum_inv / total) if total > 0 else None,
                 "sample_count": total,
                 "stress_score": None,
             })
-        result[target_slot] = slot_result
 
     return result

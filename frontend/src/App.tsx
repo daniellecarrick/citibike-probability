@@ -17,7 +17,7 @@ import './styles.css';
 function MapView({ stations }: { stations: Station[] }) {
   const { currentMapData, railTab, setRailTab } = useStore();
 
-  useMapData();
+  useMapData(stations);
 
   return (
     <div className="app-body">
@@ -59,7 +59,7 @@ function MapView({ stations }: { stations: Station[] }) {
 function MobileMapView({ stations }: { stations: Station[] }) {
   const { currentMapData } = useStore();
 
-  useMapData();
+  useMapData(stations);
 
   return (
     <div className="mobile-app-body">

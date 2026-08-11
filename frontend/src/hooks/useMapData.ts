@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useStore, METRIC_TO_API } from '../store';
-import type { DayOfWeek } from '../types';
+import type { DayOfWeek, Station, StationProbability } from '../types';
 
-export function useMapData() {
+export function useMapData(stations: Station[] = []) {
   const {
     selectedDay,
     selectedTime,
@@ -20,6 +20,14 @@ export function useMapData() {
   const selectedTimeRef = useRef(selectedTime);
   selectedTimeRef.current = selectedTime;
 
+  // The bulk endpoint returns slim entries (station_id + numbers only) to
+  // avoid repeating static station fields across all 288 slots — join them
+  // back against the already-fetched stations list here.
+  const stationById = useMemo(
+    () => new Map(stations.map(s => [s.station_id, s])),
+    [stations],
+  );
+
   // Increments when the browser comes back online, triggering failed fetches to retry.
   const [retryAt, setRetryAt] = useState(0);
   useEffect(() => {
@@ -34,9 +42,16 @@ export function useMapData() {
     if (cached) {
       const slot = Math.floor(selectedTime / 5);
       const slotData = cached[String(slot)];
-      if (slotData) setCurrentMapData(slotData);
+      if (slotData && stationById.size > 0) {
+        const merged: StationProbability[] = [];
+        for (const sp of slotData) {
+          const station = stationById.get(sp.station_id);
+          if (station) merged.push({ ...station, ...sp });
+        }
+        setCurrentMapData(merged);
+      }
     }
-  }, [selectedTime, bulkCache, cacheKey, setCurrentMapData]);
+  }, [selectedTime, bulkCache, cacheKey, stationById, setCurrentMapData]);
 
   // Pre-fetch bulk data
   useEffect(() => {

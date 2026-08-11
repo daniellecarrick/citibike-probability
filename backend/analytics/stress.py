@@ -68,3 +68,49 @@ def get_stress_score(
         "sample_count": total,
         "metric": metric,
     }
+
+
+def get_all_stations_stress(
+    conn: sqlite3.Connection,
+    day_of_week: int,
+    time_of_day: int,
+    metric: Metric = "bikes",
+    window_minutes: int = 15,
+    low_threshold: Optional[int] = None,
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+) -> dict[str, Optional[float]]:
+    """
+    Stress score for every station at once — a single grouped query instead
+    of one query per station. station_id -> stress_score (None if no data).
+    """
+    col = METRIC_COLUMN[metric]
+    threshold = low_threshold if low_threshold is not None else DEFAULT_THRESHOLDS[metric]
+
+    dow_start = (day_of_week * SECONDS_PER_DAY + EPOCH_MONDAY_OFFSET) % SECONDS_PER_WEEK
+    dow_end = dow_start + SECONDS_PER_DAY - 1
+    tod_center = time_of_day * 60
+    tod_start = max(0, tod_center - window_minutes * 60)
+    tod_end = min(SECONDS_PER_DAY - 1, tod_center + window_minutes * 60)
+    since = _since(lookback_days)
+
+    rows = conn.execute(
+        f"""
+        SELECT
+            station_id,
+            COUNT(*) AS total,
+            SUM(CASE WHEN {col} < ? THEN 1 ELSE 0 END) AS low_count
+        FROM station_snapshots
+        WHERE timestamp >= ?
+          AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+          AND (timestamp % {SECONDS_PER_DAY}) BETWEEN ? AND ?
+        GROUP BY station_id
+        """,
+        (threshold, since, dow_start, dow_end, tod_start, tod_end),
+    ).fetchall()
+
+    result: dict[str, Optional[float]] = {}
+    for r in rows:
+        total = r["total"] or 0
+        low = r["low_count"] or 0
+        result[r["station_id"]] = round((low / total) * 100, 1) if total > 0 else None
+    return result
