@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import httpx
 
 from database import get_connection, init_db
+from rollup import rebuild_rollup
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,6 +23,7 @@ STATION_INFO_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_information.js
 STATION_STATUS_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json"
 POLL_INTERVAL_SECONDS = 300  # 5 minutes
 STATION_REFRESH_INTERVAL = 3600  # refresh station metadata hourly
+ROLLUP_REBUILD_INTERVAL = 3600  # rebuild the read-side rollup table hourly
 
 
 def _parse_ebikes(station: dict) -> int:
@@ -114,11 +116,28 @@ async def poll_status(client: httpx.AsyncClient) -> int:
     return saved
 
 
+def _run_rollup_rebuild() -> None:
+    conn = get_connection()
+    try:
+        rebuild_rollup(conn)
+    finally:
+        conn.close()
+
+
 async def run() -> None:
     init_db()
     log.info("Database initialized")
 
+    # Build the rollup once before serving reads rely on it — backend falls
+    # back to scanning station_snapshots directly if this hasn't run yet,
+    # but that's much slower, so don't leave it to the first hourly tick.
+    try:
+        await asyncio.to_thread(_run_rollup_rebuild)
+    except Exception:
+        log.exception("Initial rollup rebuild failed — backend will use its raw-scan fallback")
+
     last_station_refresh = 0
+    last_rollup_rebuild = time.time()
 
     async with httpx.AsyncClient() as client:
         while True:
@@ -134,6 +153,11 @@ async def run() -> None:
                 if saved == 0:
                     log.warning("Zero snapshots saved — forcing station refresh next cycle")
                     last_station_refresh = 0
+
+                if time.time() - last_rollup_rebuild > ROLLUP_REBUILD_INTERVAL:
+                    # Off-thread: this is a multi-second scan and must not block polling.
+                    await asyncio.to_thread(_run_rollup_rebuild)
+                    last_rollup_rebuild = time.time()
 
             except httpx.HTTPError as exc:
                 log.error(f"HTTP error during poll: {exc}")

@@ -17,6 +17,8 @@ import sqlite3
 import time
 from typing import Literal
 
+from analytics import rollup
+
 Metric = Literal["bikes", "classic", "ebikes", "docks"]
 
 EPOCH_MONDAY_OFFSET = 345600  # seconds from Unix epoch to Monday 00:00
@@ -62,7 +64,22 @@ def get_availability_probability(
     """
     Probability that `metric` >= 1 for the given station, day, and time.
     Only considers snapshots within the lookback window.
+
+    Reads the pre-aggregated rollup table when it's available (fast, indexed)
+    and falls back to scanning station_snapshots directly otherwise (fresh
+    deploy before the collector's first rebuild, or a test DB without the
+    rollup table).
     """
+    if rollup.rollup_available(conn):
+        total, avail, _ = rollup.fetch_station_probability_window(
+            conn, station_id, day_of_week, time_of_day, metric, window_minutes  # type: ignore[arg-type]
+        )
+        return {
+            "probability": (avail / total) if total > 0 else None,
+            "sample_count": total,
+            "metric": metric,
+        }
+
     col = METRIC_COLUMN[metric]
     dow_start, dow_end, tod_start, tod_end = _week_window(day_of_week, time_of_day, window_minutes)
     since = _since(lookback_days)
@@ -124,6 +141,26 @@ def get_all_stations_probability(
     """
     Probability for all stations at once — used for map rendering.
     """
+    if rollup.rollup_available(conn):
+        by_station = rollup.fetch_all_stations_probability_window(
+            conn, day_of_week, time_of_day, metric, window_minutes  # type: ignore[arg-type]
+        )
+        station_rows = conn.execute("SELECT station_id, station_name, lat, lng, capacity FROM stations").fetchall()
+        result = []
+        for s in station_rows:
+            total, avail, sum_inv = by_station.get(s["station_id"], (0, 0, 0.0))
+            result.append({
+                "station_id": s["station_id"],
+                "station_name": s["station_name"],
+                "lat": s["lat"],
+                "lng": s["lng"],
+                "capacity": s["capacity"],
+                "probability": (avail / total) if total > 0 else None,
+                "mean_inventory": (sum_inv / total) if total > 0 else None,
+                "sample_count": total,
+            })
+        return result
+
     col = METRIC_COLUMN[metric]
     dow_start, dow_end, tod_start, tod_end = _week_window(day_of_week, time_of_day, window_minutes)
     tod_start_clamp = max(0, tod_start)
@@ -210,6 +247,42 @@ def get_bulk_day_probabilities(
     return result
 
 
+def _slot_data_from_raw(
+    conn: sqlite3.Connection, day_of_week: int, metric: Metric, lookback_days: int,
+) -> dict[str, dict[int, tuple[int, int, float]]]:
+    """Same shape as rollup.fetch_day_slot_data, computed directly from
+    station_snapshots — used when the rollup table isn't available yet."""
+    from collections import defaultdict
+
+    col = METRIC_COLUMN[metric]
+    dow_start = (day_of_week * SECONDS_PER_DAY + EPOCH_MONDAY_OFFSET) % SECONDS_PER_WEEK
+    dow_end = dow_start + SECONDS_PER_DAY - 1
+    since = _since(lookback_days)
+
+    rows = conn.execute(
+        f"""
+        SELECT
+            station_id,
+            CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
+            COUNT(*)                                       AS total,
+            SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END)   AS avail_count,
+            SUM(CAST({col} AS REAL))                       AS sum_inventory
+        FROM station_snapshots
+        WHERE timestamp >= ?
+          AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+        GROUP BY station_id, raw_slot
+        """,
+        (since, dow_start, dow_end),
+    ).fetchall()
+
+    slot_data: dict[str, dict[int, tuple[int, int, float]]] = defaultdict(dict)
+    for r in rows:
+        slot_data[r["station_id"]][r["raw_slot"]] = (
+            r["total"], r["avail_count"], r["sum_inventory"] or 0.0
+        )
+    return slot_data
+
+
 def _compute_bulk_day_probabilities(
     conn: sqlite3.Connection,
     day_of_week: int,
@@ -229,40 +302,18 @@ def _compute_bulk_day_probabilities(
     for ~2,400 stations was inflating this response to well over 100MB.
     The frontend joins on station_id against the stations list it already
     has loaded.
+
+    Slot data comes from the pre-aggregated rollup table when available
+    (indexed lookup instead of a multi-million-row scan) and falls back to
+    scanning station_snapshots directly otherwise.
     """
-    from collections import defaultdict
-
-    col = METRIC_COLUMN[metric]
-    dow_start = (day_of_week * SECONDS_PER_DAY + EPOCH_MONDAY_OFFSET) % SECONDS_PER_WEEK
-    dow_end = dow_start + SECONDS_PER_DAY - 1
-    since = _since(lookback_days)
     window_slots = window_minutes // 5  # 3 slots for a 15-min window
-
     station_ids = [r[0] for r in conn.execute("SELECT station_id FROM stations").fetchall()]
 
-    # One query: per-station per-raw-slot aggregates for the entire day
-    rows = conn.execute(
-        f"""
-        SELECT
-            station_id,
-            CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
-            COUNT(*)                                       AS total,
-            SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END)   AS avail_count,
-            SUM(CAST({col} AS REAL))                       AS sum_inventory
-        FROM station_snapshots
-        WHERE timestamp >= ?
-          AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
-        GROUP BY station_id, raw_slot
-        """,
-        (since, dow_start, dow_end),
-    ).fetchall()
-
-    # station_id -> {raw_slot -> (total, avail_count, sum_inventory)}
-    slot_data: dict[str, dict[int, tuple[int, int, float]]] = defaultdict(dict)
-    for r in rows:
-        slot_data[r["station_id"]][r["raw_slot"]] = (
-            r["total"], r["avail_count"], r["sum_inventory"] or 0.0
-        )
+    if rollup.rollup_available(conn):
+        slot_data = rollup.fetch_day_slot_data(conn, day_of_week, metric)  # type: ignore[arg-type]
+    else:
+        slot_data = _slot_data_from_raw(conn, day_of_week, metric, lookback_days)
 
     result: dict[int, list[dict]] = {slot: [] for slot in range(288)}
     zero = (0, 0, 0.0)

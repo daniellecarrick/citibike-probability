@@ -9,6 +9,7 @@ scores near 95 on the bike stress metric.
 import sqlite3
 from typing import Optional
 
+from analytics import rollup
 from analytics.probability import DEFAULT_LOOKBACK_DAYS, EPOCH_MONDAY_OFFSET, METRIC_COLUMN, SECONDS_PER_DAY, SECONDS_PER_WEEK, Metric, _since
 
 DEFAULT_THRESHOLDS: dict[str, int] = {
@@ -32,10 +33,27 @@ def get_stress_score(
     """
     Returns stress score (0-100) = 100 × fraction of observations below threshold.
     Only considers snapshots within the lookback window.
+
+    Reads the pre-aggregated rollup table when available and the caller is
+    using the default threshold (the rollup bakes in DEFAULT_THRESHOLDS at
+    rebuild time — a custom low_threshold always falls back to a raw scan,
+    since the rollup can't represent an arbitrary threshold).
     """
-    col = METRIC_COLUMN[metric]
     threshold = low_threshold if low_threshold is not None else DEFAULT_THRESHOLDS[metric]
 
+    if low_threshold is None and rollup.rollup_available(conn):
+        total, low = rollup.fetch_station_low_window(
+            conn, station_id, day_of_week, time_of_day, metric, window_minutes  # type: ignore[arg-type]
+        )
+        return {
+            "stress_score": round((low / total) * 100, 1) if total > 0 else None,
+            "threshold": threshold,
+            "low_count": low,
+            "sample_count": total,
+            "metric": metric,
+        }
+
+    col = METRIC_COLUMN[metric]
     dow_start = (day_of_week * SECONDS_PER_DAY + EPOCH_MONDAY_OFFSET) % SECONDS_PER_WEEK
     dow_end = dow_start + SECONDS_PER_DAY - 1
     tod_center = time_of_day * 60
@@ -83,9 +101,18 @@ def get_all_stations_stress(
     Stress score for every station at once — a single grouped query instead
     of one query per station. station_id -> stress_score (None if no data).
     """
-    col = METRIC_COLUMN[metric]
     threshold = low_threshold if low_threshold is not None else DEFAULT_THRESHOLDS[metric]
 
+    if low_threshold is None and rollup.rollup_available(conn):
+        by_station = rollup.fetch_all_stations_low_window(
+            conn, day_of_week, time_of_day, metric, window_minutes  # type: ignore[arg-type]
+        )
+        return {
+            station_id: (round((low / total) * 100, 1) if total > 0 else None)
+            for station_id, (total, low) in by_station.items()
+        }
+
+    col = METRIC_COLUMN[metric]
     dow_start = (day_of_week * SECONDS_PER_DAY + EPOCH_MONDAY_OFFSET) % SECONDS_PER_WEEK
     dow_end = dow_start + SECONDS_PER_DAY - 1
     tod_center = time_of_day * 60

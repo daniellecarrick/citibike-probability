@@ -47,6 +47,34 @@ def init_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_snap_epoch_week
                 ON station_snapshots((timestamp % 604800), station_id);
+
+            -- Pre-aggregated (station, day-of-week, 5-min slot) rollup, rebuilt
+            -- periodically from station_snapshots. Fixed size (~stations * 2016
+            -- slots) regardless of how much raw history accumulates — read
+            -- endpoints query this instead of scanning station_snapshots.
+            -- station_snapshots itself is never modified by the rollup.
+            CREATE TABLE IF NOT EXISTS station_slot_rollup (
+                station_id     TEXT NOT NULL,
+                day_of_week    INTEGER NOT NULL,
+                raw_slot       INTEGER NOT NULL,
+                total          INTEGER NOT NULL,
+                bikes_avail    INTEGER NOT NULL,
+                bikes_low      INTEGER NOT NULL,
+                bikes_sum      REAL NOT NULL,
+                classic_avail  INTEGER NOT NULL,
+                classic_low    INTEGER NOT NULL,
+                classic_sum    REAL NOT NULL,
+                ebikes_avail   INTEGER NOT NULL,
+                ebikes_low     INTEGER NOT NULL,
+                ebikes_sum     REAL NOT NULL,
+                docks_avail    INTEGER NOT NULL,
+                docks_low      INTEGER NOT NULL,
+                docks_sum      REAL NOT NULL,
+                PRIMARY KEY (station_id, day_of_week, raw_slot)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_rollup_day_slot
+                ON station_slot_rollup(day_of_week, raw_slot);
         """)
 
     # Migration: add is_seeded column to existing databases that predate this change.
