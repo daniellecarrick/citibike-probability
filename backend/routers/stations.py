@@ -17,7 +17,7 @@ TimeParam = Annotated[int, Query(ge=0, le=1439, description="Minutes since midni
 @router.get("")
 def list_stations(conn: sqlite3.Connection = Depends(get_db)):
     rows = conn.execute(
-        "SELECT station_id, station_name, lat, lng, capacity FROM stations ORDER BY station_name"
+        "SELECT station_id, station_name, lat, lng, capacity, borough, neighborhood FROM stations ORDER BY station_name"
     ).fetchall()
     return [dict(r) for r in rows]
 
@@ -25,7 +25,7 @@ def list_stations(conn: sqlite3.Connection = Depends(get_db)):
 @router.get("/{station_id}")
 def get_station(station_id: str, conn: sqlite3.Connection = Depends(get_db)):
     row = conn.execute(
-        "SELECT station_id, station_name, lat, lng, capacity FROM stations WHERE station_id = ?",
+        "SELECT station_id, station_name, lat, lng, capacity, borough, neighborhood FROM stations WHERE station_id = ?",
         (station_id,),
     ).fetchone()
     if not row:
@@ -41,7 +41,7 @@ def get_station_detail(
     conn: sqlite3.Connection = Depends(get_db),
 ):
     row = conn.execute(
-        "SELECT station_id, station_name, lat, lng, capacity FROM stations WHERE station_id = ?",
+        "SELECT station_id, station_name, lat, lng, capacity, borough, neighborhood FROM stations WHERE station_id = ?",
         (station_id,),
     ).fetchone()
     if not row:
@@ -68,7 +68,7 @@ def get_station_detail(
     # Nearby stations (3 closest by Euclidean distance — good enough for NYC)
     nearby = conn.execute(
         """
-        SELECT station_id, station_name, lat, lng,
+        SELECT station_id, station_name, lat, lng, borough, neighborhood,
                ((lat - ?) * (lat - ?) + (lng - ?) * (lng - ?)) AS dist_sq
         FROM stations
         WHERE station_id != ?

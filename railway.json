@@ -9,7 +9,8 @@
         }
       ],
       "variables": {
-        "DB_PATH": "/data/citibike.db"
+        "DB_PATH": "/data/citibike.db",
+        "MAPBOX_TOKEN": "pk.your_mapbox_public_token_here"
       }
     },
     "citibike-probability-backend": {

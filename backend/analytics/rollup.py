@@ -63,6 +63,30 @@ def fetch_day_slot_data(
     return slot_data
 
 
+def fetch_station_all_days_slot_data(
+    conn: sqlite3.Connection, station_id: str, metric: Metric
+) -> dict[int, dict[int, tuple[int, int, float]]]:
+    """day_of_week -> {raw_slot -> (total, avail_count, sum_inventory)} for ONE
+    station across the whole week — station_id is the leading column of the
+    rollup table's primary key, so this is a single fast indexed scan
+    regardless of total station count. Used by the commute day×time matrix,
+    which needs one station's full week rather than one day for all stations."""
+    cols = METRIC_COLUMNS[metric]
+    rows = conn.execute(
+        f"""
+        SELECT day_of_week, raw_slot, total, {cols['avail']} AS avail_count, {cols['sum']} AS sum_inventory
+        FROM station_slot_rollup
+        WHERE station_id = ?
+        """,
+        (station_id,),
+    ).fetchall()
+
+    week_data: dict[int, dict[int, tuple[int, int, float]]] = defaultdict(dict)
+    for r in rows:
+        week_data[r["day_of_week"]][r["raw_slot"]] = (r["total"], r["avail_count"], r["sum_inventory"] or 0.0)
+    return week_data
+
+
 def fetch_station_probability_window(
     conn: sqlite3.Connection, station_id: str, day_of_week: int, time_of_day: int,
     metric: Metric, window_minutes: int,

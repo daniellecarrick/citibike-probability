@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BarHistogram } from '../charts/BarHistogram';
 import { HourLineChart } from '../charts/HourLineChart';
 import { useStationDetail } from '../../hooks/useStationDetail';
@@ -26,8 +27,9 @@ function statusLabel(prob: number | null): { label: string; color: string } {
 }
 
 export function StationDetailPanel() {
+  const navigate = useNavigate();
   const {
-    selectedStationId, selectStation, commute, setCommute, setRailTab,
+    selectedStationId, selectStation, commute, setCommute,
     selectedTime, selectedDay, selectedMetric, focusStress, setFocusStress,
     bulkCache,
   } = useStore();
@@ -89,13 +91,13 @@ export function StationDetailPanel() {
   function handleSetOrigin() {
     setPanelMode('pickup');
     setCommute({ originId: selectedStationId!, destId: commute?.destId ?? '', bikeType: commute?.bikeType ?? 'any' });
-    setRailTab('commute');
+    navigate('/commute');
   }
 
   function handleSetDest() {
     setPanelMode('dropoff');
     setCommute({ originId: commute?.originId ?? '', destId: selectedStationId!, bikeType: commute?.bikeType ?? 'any' });
-    setRailTab('commute');
+    navigate('/commute');
   }
 
   return (

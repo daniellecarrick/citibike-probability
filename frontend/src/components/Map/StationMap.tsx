@@ -5,7 +5,6 @@ import { mapboxColorExpression } from '../../utils/colorScale';
 import type { StationProbability } from '../../types';
 import { HeatSurface } from './HeatSurface';
 import { StationHoverTooltip } from './StationHoverTooltip';
-import { TimeScrubber } from '../Controls/TimeScrubber';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
@@ -326,7 +325,6 @@ export function StationMap({ data }: Props) {
       {mapDataLoading && data.length === 0 && <div className="map-loading-spinner" />}
 
       <StationHoverTooltip station={hoveredStation} tooltipRef={tooltipRef} />
-      <TimeScrubber />
     </div>
   );
 }

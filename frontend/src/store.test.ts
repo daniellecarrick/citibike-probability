@@ -9,7 +9,6 @@ beforeEach(() => {
   s.setMetric('ebike');
   s.selectStation(null);
   s.setCommute(null);
-  s.setRailTab('commute');
   useStore.setState({ bulkCache: {}, currentMapData: [] });
 });
 
@@ -45,22 +44,10 @@ describe('selectStation', () => {
     expect(useStore.getState().selectedStationId).toBe('abc');
   });
 
-  it('switches railTab to station when an id is set', () => {
-    useStore.getState().setRailTab('commute');
-    useStore.getState().selectStation('xyz');
-    expect(useStore.getState().railTab).toBe('station');
-  });
-
   it('clears selectedStationId when called with null', () => {
     useStore.getState().selectStation('abc');
     useStore.getState().selectStation(null);
     expect(useStore.getState().selectedStationId).toBeNull();
-  });
-
-  it('does NOT change railTab when id is null', () => {
-    useStore.getState().setRailTab('commute');
-    useStore.getState().selectStation(null);
-    expect(useStore.getState().railTab).toBe('commute');
   });
 });
 
@@ -75,12 +62,6 @@ describe('setCommute', () => {
     useStore.getState().setCommute({ originId: 'A', destId: 'B', bikeType: 'any' });
     useStore.getState().setCommute(null);
     expect(useStore.getState().commute).toBeNull();
-  });
-
-  it('switches railTab to commute when a plan is set', () => {
-    useStore.getState().setRailTab('station');
-    useStore.getState().setCommute({ originId: 'A', destId: 'B', bikeType: 'any' });
-    expect(useStore.getState().railTab).toBe('commute');
   });
 });
 

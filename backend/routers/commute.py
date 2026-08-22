@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from analytics.commute import get_commute_success, get_recommendations
+from analytics.commute import get_commute_matrix, get_commute_success, get_recommendations
 from database import get_db
 
 router = APIRouter(prefix="/api/commute", tags=["commute"])
@@ -32,3 +32,13 @@ def commute_recommendations(
     conn: sqlite3.Connection = Depends(get_db),
 ):
     return get_recommendations(conn, origin, destination, day, departure_time)
+
+
+@router.get("/matrix")
+def commute_matrix(
+    origin: str = Query(..., description="Origin station ID"),
+    destination: str = Query(..., description="Destination station ID"),
+    bucket_minutes: int = Query(30, ge=5, le=60, description="Time-of-day bucket width in minutes"),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    return get_commute_matrix(conn, origin, destination, bucket_minutes)

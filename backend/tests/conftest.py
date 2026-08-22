@@ -17,7 +17,9 @@ CREATE TABLE IF NOT EXISTS stations (
     station_name TEXT NOT NULL,
     lat          REAL NOT NULL,
     lng          REAL NOT NULL,
-    capacity     INTEGER
+    capacity     INTEGER,
+    borough      TEXT,
+    neighborhood TEXT
 );
 
 CREATE TABLE IF NOT EXISTS station_snapshots (

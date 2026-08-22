@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useCommute } from '../../hooks/useCommute';
+import { useCommuteMatrix } from '../../hooks/useCommuteMatrix';
 import { useStore } from '../../store';
 import { probabilityToColor, fmtPct } from '../../utils/colorScale';
+import { filterStations } from '../../utils/stationSearch';
+import { CommuteMatrix } from './CommuteMatrix';
 import { RecommendationList } from './RecommendationList';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 import type { SavedCommute } from '../../hooks/useSavedCommutes';
@@ -10,16 +13,6 @@ import type { Station } from '../../types';
 type SavedItem = SavedCommute & { kind: 'starred' | 'recent' };
 
 const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-const DAYS_PILLS = [
-  { letter: 'M', value: 0 },
-  { letter: 'T', value: 1 },
-  { letter: 'W', value: 2 },
-  { letter: 'T', value: 3 },
-  { letter: 'F', value: 4 },
-  { letter: 'S', value: 5 },
-  { letter: 'S', value: 6 },
-] as const;
 
 function formatTime(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -63,9 +56,7 @@ function StationCombo({
   const wrapRef = useRef<HTMLDivElement>(null);
   const selected = stations.find(s => s.station_id === value);
 
-  const filtered = query
-    ? stations.filter(s => s.station_name.toLowerCase().includes(query.toLowerCase())).slice(0, 40)
-    : stations.slice(0, 40);
+  const filtered = filterStations(stations, query, 40);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
@@ -86,6 +77,9 @@ function StationCombo({
           {selected ? (
             <>
               <div className="station-combo-name">{selected.station_name}</div>
+              {selected.neighborhood && (
+                <div className="station-combo-hood">{selected.neighborhood}</div>
+              )}
             </>
           ) : (
             <div className="station-combo-placeholder">{placeholder}</div>
@@ -97,7 +91,7 @@ function StationCombo({
           <div className="station-dropdown-search">
             <input
               autoFocus
-              placeholder="Search stations…"
+              placeholder="Search by station, neighborhood, or borough…"
               value={query}
               onChange={e => setQuery(e.target.value)}
             />
@@ -110,6 +104,7 @@ function StationCombo({
             >
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
               {s.station_name}
+              {s.neighborhood && <span className="hood">{s.neighborhood}</span>}
             </div>
           ))}
         </div>
@@ -125,6 +120,7 @@ interface Props {
 export function CommutePlanner({ stations }: Props) {
   const { commute, setCommute, selectedDay, selectedTime, setDay, setTime, setMapMode } = useStore();
   const { result, recommendations, loading } = useCommute();
+  const { matrix } = useCommuteMatrix();
   const { recent, starred, addRecent, toggleStar, isStarred, removeRecent } = useSavedCommutes();
 
   const [originId, setOriginId] = useState(commute?.originId ?? '');
@@ -291,35 +287,6 @@ export function CommutePlanner({ stations }: Props) {
           />
 
           <div>
-            <span className="field-label">Day</span>
-            <div className="day-pills-track">
-              {DAYS_PILLS.map(d => (
-                <button
-                  key={d.value}
-                  className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
-                  title={DAYS_FULL[d.value]}
-                  onClick={() => setDay(d.value)}
-                >
-                  {d.letter}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <span className="field-label">Departure time</span>
-            <select
-              className="field-select"
-              value={selectedTime}
-              onChange={e => setTime(Number(e.target.value))}
-            >
-              {Array.from({ length: 288 }, (_, i) => i * 5).map(m => (
-                <option key={m} value={m}>{formatTime(m)}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
             <span className="field-label">Bike type</span>
             <div className="segmented">
               {(['any', 'classic', 'ebike'] as const).map(t => (
@@ -345,6 +312,9 @@ export function CommutePlanner({ stations }: Props) {
         </div>
       </div>
 
+      {/* Day × time breakdown — appears once a commute is set, drives the forecast below */}
+      {matrix && <CommuteMatrix matrix={matrix} />}
+
       {/* Empty state / result */}
       {!hasCommute && !loading && (
         <div className="card">
@@ -354,8 +324,8 @@ export function CommutePlanner({ stations }: Props) {
             We analyzed millions of station observations to predict where bikes and docks are likely
             to be available throughout the week.
             <br /><br />
-            Pick an origin and destination above to get your commute forecast — or scrub through the
-            day and watch the city breathe.
+            Pick an origin and destination above to get your commute forecast — then explore the
+            day-by-day breakdown to find the easiest time to go.
           </div>
           <button className="cta-btn" onClick={handleSample}>
             Try a sample commute →

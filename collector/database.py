@@ -24,7 +24,9 @@ def init_db() -> None:
                 station_name TEXT NOT NULL,
                 lat          REAL NOT NULL,
                 lng          REAL NOT NULL,
-                capacity     INTEGER
+                capacity     INTEGER,
+                borough      TEXT,
+                neighborhood TEXT
             );
 
             CREATE TABLE IF NOT EXISTS station_snapshots (
@@ -86,5 +88,16 @@ def init_db() -> None:
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_snap_is_seeded ON station_snapshots(is_seeded, timestamp)")
     conn.commit()
+
+    # Migration: add borough/neighborhood columns for existing databases that
+    # predate this change. Both start NULL ("not yet geocoded") — there's no
+    # valid default, and NULL is exactly what the geocoding backfill queries for.
+    station_cols = {row[1] for row in conn.execute("PRAGMA table_info(stations)")}
+    if "borough" not in station_cols:
+        conn.execute("ALTER TABLE stations ADD COLUMN borough TEXT")
+        conn.commit()
+    if "neighborhood" not in station_cols:
+        conn.execute("ALTER TABLE stations ADD COLUMN neighborhood TEXT")
+        conn.commit()
 
     conn.close()

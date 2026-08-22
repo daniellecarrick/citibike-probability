@@ -3,6 +3,7 @@ import type {
   AdminPoll,
   AdminSummary,
   BulkMapData,
+  CommuteMatrixResponse,
   CommuteResult,
   DayOfWeek,
   Metric,
@@ -44,6 +45,8 @@ export const api = {
       get<CommuteResult>('/api/commute/success', { origin, destination, day, departure_time }),
     recommendations: (origin: string, destination: string, day: DayOfWeek, departure_time: number) =>
       get<Recommendation[]>('/api/commute/recommendations', { origin, destination, day, departure_time }),
+    matrix: (origin: string, destination: string, bucketMinutes = 30) =>
+      get<CommuteMatrixResponse>('/api/commute/matrix', { origin, destination, bucket_minutes: bucketMinutes }),
   },
 
   admin: {

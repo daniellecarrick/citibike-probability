@@ -9,6 +9,8 @@ export interface Station {
   lat: number;
   lng: number;
   capacity: number | null;
+  borough: string | null;
+  neighborhood: string | null;
 }
 
 export interface StationProbability {
@@ -86,6 +88,28 @@ export interface Recommendation {
   success_probability: number | null;
   bike_probability: number | null;
   dock_probability: number | null;
+}
+
+export interface CommuteMatrixBucket {
+  departure_minute: number;
+  departure_time: string;
+  success_probability: number | null;
+  bike_probability: number | null;
+  dock_probability: number | null;
+  sample_count: number;
+}
+
+export interface CommuteMatrixDay {
+  day_of_week: DayOfWeek;
+  buckets: CommuteMatrixBucket[];
+}
+
+export interface CommuteMatrixResponse {
+  origin: { id: string; name: string };
+  destination: { id: string; name: string };
+  travel_minutes: number;
+  bucket_minutes: number;
+  days: CommuteMatrixDay[];
 }
 
 // Slim per-slot entry from /api/map/bulk — station_id only, no name/lat/lng/

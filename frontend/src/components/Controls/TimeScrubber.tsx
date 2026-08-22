@@ -86,28 +86,27 @@ export function TimeScrubber() {
   const fillPct = (slot / 287) * 100;
 
   return (
-    <div className="time-scrubber-overlay">
+    <div className="time-scrubber-panel">
       <div className="scrubber-top-row">
         <span className="scrubber-period">{periodLabel(selectedTime)}</span>
-        <div className="scrubber-day-row">
-          <span className="day-pills-label">Day</span>
-          <div className="day-pills-track">
-            {DAYS.map(d => (
-              <button
-                key={d.value}
-                className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
-                title={d.full}
-                onClick={() => setDay(d.value)}
-              >
-                {d.letter}
-              </button>
-            ))}
-          </div>
-        </div>
         <span className="scrubber-time">{formatTime(selectedTime)}</span>
       </div>
 
-
+      <div className="scrubber-day-row">
+        <span className="day-pills-label">Day</span>
+        <div className="day-pills-track">
+          {DAYS.map(d => (
+            <button
+              key={d.value}
+              className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
+              title={d.full}
+              onClick={() => setDay(d.value)}
+            >
+              {d.letter}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="scrubber-track-row">
         <button className="play-btn" onClick={() => setPlaying(!animation.playing)}>

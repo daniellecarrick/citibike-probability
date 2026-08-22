@@ -9,6 +9,10 @@ vi.mock('../../hooks/useCommute', () => ({
   useCommute: () => ({ result: null, recommendations: [], loading: false }),
 }));
 
+vi.mock('../../hooks/useCommuteMatrix', () => ({
+  useCommuteMatrix: () => ({ matrix: null, loading: false }),
+}));
+
 vi.mock('../../hooks/useSavedCommutes', () => ({
   useSavedCommutes: vi.fn(),
 }));
@@ -18,8 +22,8 @@ import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 const mockUseSavedCommutes = useSavedCommutes as ReturnType<typeof vi.fn>;
 
 const STATIONS: Station[] = [
-  { station_id: 'S1', station_name: 'Park Ave', lat: 40.75, lng: -73.98, capacity: 20 },
-  { station_id: 'S2', station_name: 'Grand St',  lat: 40.76, lng: -73.97, capacity: 15 },
+  { station_id: 'S1', station_name: 'Park Ave', lat: 40.75, lng: -73.98, capacity: 20, borough: 'Manhattan', neighborhood: 'Midtown' },
+  { station_id: 'S2', station_name: 'Grand St',  lat: 40.76, lng: -73.97, capacity: 15, borough: 'Brooklyn', neighborhood: 'Williamsburg' },
 ];
 
 function makeSavedHook(overrides = {}) {
@@ -47,38 +51,6 @@ beforeEach(() => {
 function renderPlanner() {
   return render(<CommutePlanner stations={STATIONS} />);
 }
-
-describe('day pills', () => {
-  it('renders 7 day pills', () => {
-    renderPlanner();
-    const pills = screen.getAllByRole('button').filter(b =>
-      ['M', 'T', 'W', 'F', 'S'].includes(b.textContent ?? '')
-    );
-    expect(pills.length).toBeGreaterThanOrEqual(5);
-  });
-
-  it('clicking a day pill calls setDay with the correct index', () => {
-    renderPlanner();
-    // Find the Wednesday pill (value=2, letter W)
-    const wednesdayBtn = screen.getByTitle('Wednesday');
-    fireEvent.click(wednesdayBtn);
-    expect(useStore.getState().selectedDay).toBe(2);
-  });
-});
-
-describe('time dropdown', () => {
-  it('renders a departure time select', () => {
-    renderPlanner();
-    expect(screen.getByDisplayValue('8:00 AM')).toBeInTheDocument();
-  });
-
-  it('changing the dropdown calls setTime with the numeric value', () => {
-    renderPlanner();
-    const select = screen.getByDisplayValue('8:00 AM');
-    fireEvent.change(select, { target: { value: '720' } });
-    expect(useStore.getState().selectedTime).toBe(720);
-  });
-});
 
 describe('Get forecast button', () => {
   it('is disabled when origin and destination are not set', () => {

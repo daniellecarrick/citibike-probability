@@ -4,7 +4,6 @@ import type { BulkMapData, DayOfWeek, StationProbability } from './types';
 export type Metric = 'bike' | 'ebike' | 'dock' | 'reliability' | 'stress' | 'fullness';
 export type MapMode = 'stations' | 'surface';
 export type BikeType = 'any' | 'classic' | 'ebike';
-export type RailTab = 'station' | 'commute';
 
 /** Map frontend metric keys to backend API param values. */
 export const METRIC_TO_API: Record<Metric, string> = {
@@ -36,7 +35,6 @@ interface AppState {
   commute: CommutePlan | null;
 
   // UI
-  railTab: RailTab;
   focusStress: boolean;
   animation: { playing: boolean };
 
@@ -52,7 +50,6 @@ interface AppState {
   setMapMode: (mode: MapMode) => void;
   selectStation: (id: string | null) => void;
   setCommute: (plan: CommutePlan | null) => void;
-  setRailTab: (tab: RailTab) => void;
   setFocusStress: (v: boolean) => void;
   setPlaying: (playing: boolean) => void;
   setCurrentMapData: (data: StationProbability[]) => void;
@@ -78,7 +75,6 @@ export const useStore = create<AppState>((set, get) => ({
   mapMode: 'stations',
   selectedStationId: null,
   commute: null,
-  railTab: 'commute',
   focusStress: false,
   animation: { playing: false },
   currentMapData: [],
@@ -89,9 +85,8 @@ export const useStore = create<AppState>((set, get) => ({
   setTime: (minutes) => set({ selectedTime: minutes }),
   setMetric: (metric) => set({ selectedMetric: metric }),
   setMapMode: (mode) => set({ mapMode: mode }),
-  selectStation: (id) => set({ selectedStationId: id, railTab: id ? 'station' : get().railTab }),
-  setCommute: (plan) => set({ commute: plan, railTab: plan ? 'commute' : get().railTab }),
-  setRailTab: (tab) => set({ railTab: tab }),
+  selectStation: (id) => set({ selectedStationId: id }),
+  setCommute: (plan) => set({ commute: plan }),
   setFocusStress: (v) => set({ focusStress: v }),
   setPlaying: (playing) => set((s) => ({ animation: { ...s.animation, playing } })),
   setCurrentMapData: (data) => set({ currentMapData: data }),

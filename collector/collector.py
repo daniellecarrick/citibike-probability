@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import httpx
 
 from database import get_connection, init_db
+from geocode import geocode_missing_stations
 from rollup import rebuild_rollup
 
 logging.basicConfig(
@@ -140,6 +141,13 @@ async def run() -> None:
     last_rollup_rebuild = time.time()
 
     async with httpx.AsyncClient() as client:
+        # Backfills every station missing borough/neighborhood — on first
+        # deploy that's all of them (a few minutes, one time only).
+        try:
+            await geocode_missing_stations(client)
+        except Exception:
+            log.exception("Initial geocoding pass failed — will retry after the next station refresh")
+
         while True:
             loop_start = time.monotonic()
 
@@ -148,6 +156,8 @@ async def run() -> None:
                 if time.time() - last_station_refresh > STATION_REFRESH_INTERVAL:
                     await refresh_stations(client)
                     last_station_refresh = time.time()
+                    # Self-heals any newly-added stations; near-zero cost when nothing's new.
+                    await geocode_missing_stations(client)
 
                 saved = await poll_status(client)
                 if saved == 0:

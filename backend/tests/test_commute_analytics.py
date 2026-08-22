@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import pytest
 import math
-from analytics.commute import haversine_miles, estimate_travel_time, get_commute_success
+from analytics.commute import haversine_miles, estimate_travel_time, get_commute_success, get_commute_matrix
 from tests.conftest import insert_snapshots
 
 
@@ -95,3 +95,69 @@ def test_missing_origin_returns_error(db):
 def test_missing_dest_returns_error(db):
     result = get_commute_success(db, "S1", "NONEXISTENT", day_of_week=0, departure_minute=480)
     assert "error" in result
+
+
+# ── get_commute_matrix ──────────────────────────────────────────────────────
+
+def test_matrix_shape_default_buckets(db):
+    matrix = get_commute_matrix(db, "S1", "S2")
+    assert matrix["bucket_minutes"] == 30
+    assert len(matrix["days"]) == 7
+    for i, day in enumerate(matrix["days"]):
+        assert day["day_of_week"] == i
+        assert len(day["buckets"]) == 48  # 1440 / 30
+
+
+def test_matrix_custom_bucket_minutes(db):
+    matrix = get_commute_matrix(db, "S1", "S2", bucket_minutes=60)
+    for day in matrix["days"]:
+        assert len(day["buckets"]) == 24  # 1440 / 60
+
+
+def test_matrix_missing_station_returns_error(db):
+    result = get_commute_matrix(db, "NONEXISTENT", "S2")
+    assert "error" in result
+
+
+def test_matrix_success_probability_product(db, monkeypatch):
+    """P(success) = P(bike) × P(dock) for the matching bucket, end-to-end."""
+    import analytics.commute as commute_mod
+    monkeypatch.setattr(commute_mod, "estimate_travel_time", lambda *_: 10)
+
+    # Origin: 10 snapshots, all with bikes → P(bike) = 1.0
+    insert_snapshots(db, "S1", day_of_week=1, minute_of_day=8*60, count=10, bikes=2, docks=0)
+    # Destination: 10 snapshots, 5 with docks → P(dock) = 0.5
+    insert_snapshots(db, "S2", day_of_week=1, minute_of_day=8*60+10, count=5, bikes=0, docks=3)
+    insert_snapshots(db, "S2", day_of_week=1, minute_of_day=8*60+10, count=5, bikes=0, docks=0)
+
+    matrix = get_commute_matrix(db, "S1", "S2", bucket_minutes=30)
+    tuesday = matrix["days"][1]
+    bucket = next(b for b in tuesday["buckets"] if b["departure_minute"] == 8 * 60)
+
+    assert bucket["bike_probability"] == pytest.approx(1.0)
+    assert bucket["dock_probability"] == pytest.approx(0.5)
+    assert bucket["success_probability"] == pytest.approx(0.5)
+
+
+def test_matrix_midnight_rollover(db, monkeypatch):
+    """
+    A departure at 23:30 with 45 min of travel arrives 00:15 the *next* day —
+    the matrix must read destination data from the next day's bucket, not the
+    departure day's (the single-point endpoints never need this since they
+    only ever look at one day at a time).
+    """
+    import analytics.commute as commute_mod
+    monkeypatch.setattr(commute_mod, "estimate_travel_time", lambda *_: 45)
+
+    # Origin: bikes available Monday (day=0) at 23:30
+    insert_snapshots(db, "S1", day_of_week=0, minute_of_day=23*60+30, count=5, bikes=2, docks=0)
+    # Destination: docks available Tuesday (day=1) at 00:15 — where the trip actually lands
+    insert_snapshots(db, "S2", day_of_week=1, minute_of_day=15, count=5, bikes=0, docks=3)
+
+    matrix = get_commute_matrix(db, "S1", "S2", bucket_minutes=30)
+    monday = matrix["days"][0]
+    bucket = next(b for b in monday["buckets"] if b["departure_minute"] == 23 * 60 + 30)
+
+    assert bucket["bike_probability"] == pytest.approx(1.0)
+    assert bucket["dock_probability"] == pytest.approx(1.0)
+    assert bucket["success_probability"] == pytest.approx(1.0)

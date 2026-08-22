@@ -11,6 +11,7 @@ import math
 import sqlite3
 from typing import Optional
 
+from analytics import rollup
 from analytics.probability import get_availability_probability
 
 
@@ -146,3 +147,98 @@ def get_recommendations(
         })
 
     return scores
+
+
+def _window_sum(
+    day_slots: dict[int, tuple[int, int, float]], time_of_day: int, window_minutes: int,
+) -> tuple[int, int, float]:
+    """Sum (total, avail_count, sum_inventory) over the ±window raw_slots for one day's rollup data."""
+    total = avail = 0
+    sum_inv = 0.0
+    for slot in rollup.slots_in_window(time_of_day, window_minutes):
+        t, a, s = day_slots.get(slot, (0, 0, 0.0))
+        total += t
+        avail += a
+        sum_inv += s
+    return total, avail, sum_inv
+
+
+def get_commute_matrix(
+    conn: sqlite3.Connection,
+    origin_id: str,
+    dest_id: str,
+    bucket_minutes: int = 30,
+    window_minutes: int = 15,
+) -> dict:
+    """
+    Commute success probability broken out by every day of week × time-of-day
+    bucket, for one origin/destination pair — lets the frontend show which
+    day/time combinations are easier or harder without the user picking a
+    day/time first.
+
+    Batches to 2 total queries (one for the origin's week of `bikes` data, one
+    for the destination's week of `docks` data) via
+    rollup.fetch_station_all_days_slot_data, then computes every bucket from
+    those already-fetched dicts in Python — not one query per cell.
+
+    A late departure's arrival can land on the *next* day (the single-point
+    endpoints above never need to track this since they only ever look at one
+    day), so arrival_day is computed explicitly per bucket.
+    """
+    origin = _get_station(conn, origin_id)
+    dest = _get_station(conn, dest_id)
+    if not origin or not dest:
+        return {"error": "Station not found"}
+
+    travel_minutes = estimate_travel_time(
+        origin["lat"], origin["lng"], dest["lat"], dest["lng"]
+    )
+    buckets_per_day = (24 * 60) // bucket_minutes
+
+    use_rollup = rollup.rollup_available(conn)
+    origin_week = rollup.fetch_station_all_days_slot_data(conn, origin_id, "bikes") if use_rollup else {}
+    dest_week = rollup.fetch_station_all_days_slot_data(conn, dest_id, "docks") if use_rollup else {}
+
+    days: list[dict] = []
+    for day in range(7):
+        buckets: list[dict] = []
+        for b in range(buckets_per_day):
+            departure_minute = b * bucket_minutes
+            arrival_raw = departure_minute + travel_minutes
+            arrival_day = (day + arrival_raw // (24 * 60)) % 7
+            arrival_minute = arrival_raw % (24 * 60)
+
+            if use_rollup:
+                bike_total, bike_avail, _ = _window_sum(origin_week.get(day, {}), departure_minute, window_minutes)
+                dock_total, dock_avail, _ = _window_sum(dest_week.get(arrival_day, {}), arrival_minute, window_minutes)
+                p_bike = (bike_avail / bike_total) if bike_total > 0 else None
+                p_dock = (dock_avail / dock_total) if dock_total > 0 else None
+                sample_count = min(bike_total, dock_total)
+            else:
+                bike = get_availability_probability(conn, origin_id, day, departure_minute, "bikes", window_minutes)
+                dock = get_availability_probability(conn, dest_id, arrival_day, arrival_minute, "docks", window_minutes)
+                p_bike = bike["probability"]
+                p_dock = dock["probability"]
+                sample_count = min(bike["sample_count"], dock["sample_count"])
+
+            p_success = (p_bike * p_dock) if (p_bike is not None and p_dock is not None) else None
+            dep_h, dep_m = divmod(departure_minute, 60)
+
+            buckets.append({
+                "departure_minute": departure_minute,
+                "departure_time": f"{dep_h:02d}:{dep_m:02d}",
+                "success_probability": p_success,
+                "bike_probability": p_bike,
+                "dock_probability": p_dock,
+                "sample_count": sample_count,
+            })
+
+        days.append({"day_of_week": day, "buckets": buckets})
+
+    return {
+        "origin": {"id": origin_id, "name": origin["station_name"]},
+        "destination": {"id": dest_id, "name": dest["station_name"]},
+        "travel_minutes": travel_minutes,
+        "bucket_minutes": bucket_minutes,
+        "days": days,
+    }
