@@ -3,7 +3,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from analytics.commute import get_commute_matrix, get_commute_success, get_recommendations
+from analytics.commute import (
+    get_commute_availability_series,
+    get_commute_matrix,
+    get_commute_success,
+    get_recommendations,
+)
 from database import get_db
 
 router = APIRouter(prefix="/api/commute", tags=["commute"])
@@ -42,3 +47,13 @@ def commute_matrix(
     conn: sqlite3.Connection = Depends(get_db),
 ):
     return get_commute_matrix(conn, origin, destination, bucket_minutes)
+
+
+@router.get("/availability-series")
+def commute_availability_series(
+    origin: str = Query(..., description="Origin station ID"),
+    destination: str = Query(..., description="Destination station ID"),
+    day: DayParam = 0,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    return get_commute_availability_series(conn, origin, destination, day)

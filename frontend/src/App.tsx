@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api/client';
 import { AdminPage } from './components/Admin/AdminPage';
 import { CommutePlanner } from './components/CommutePlanner/CommutePlanner';
+import { CommuteRouteBar } from './components/CommutePlanner/CommuteRouteBar';
 import { Header } from './components/Layout/Header';
 import { MapSidebar } from './components/Map/MapSidebar';
 import { MobileBottomSheet } from './components/Mobile/MobileBottomSheet';
 import { MobileFilterMenu } from './components/Mobile/MobileFilterMenu';
 import { StationMap } from './components/Map/StationMap';
-import { TrendsPage } from './components/Trends/TrendsPage';
+import { PatternsPage } from './components/Patterns/PatternsPage';
 import { useIsMobile } from './hooks/useIsMobile';
 import { useMapData } from './hooks/useMapData';
 import { useStore } from './store';
@@ -50,6 +51,8 @@ function App() {
   const isMobile = useIsMobile();
   const [stations, setStations] = useState<Station[]>([]);
   const [retryAt, setRetryAt] = useState(0);
+  const { commute } = useStore();
+  const location = useLocation();
 
   useEffect(() => {
     const handler = () => setRetryAt(Date.now());
@@ -65,12 +68,17 @@ function App() {
   return (
     <div className="app">
       <Header />
+      {location.pathname === '/commute' && commute && <CommuteRouteBar stations={stations} />}
 
       <Routes>
         <Route path="/" element={<Navigate to="/commute" replace />} />
         <Route
           path="/commute"
-          element={<div className="page-container"><CommutePlanner stations={stations} /></div>}
+          element={
+            <div className={`page-container${commute ? '' : ' page-container-centered'}`}>
+              <CommutePlanner stations={stations} />
+            </div>
+          }
         />
         <Route
           path="/map"
@@ -80,7 +88,7 @@ function App() {
               : <MapView stations={stations} />
           }
         />
-        <Route path="/trends" element={<div className="page-container"><TrendsPage /></div>} />
+        <Route path="/patterns" element={<div className="page-container"><PatternsPage /></div>} />
         <Route
           path="/admin"
           element={<div className="admin-container"><AdminPage /></div>}

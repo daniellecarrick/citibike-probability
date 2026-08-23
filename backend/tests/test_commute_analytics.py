@@ -10,7 +10,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import pytest
 import math
-from analytics.commute import haversine_miles, estimate_travel_time, get_commute_success, get_commute_matrix
+from analytics.commute import (
+    haversine_miles,
+    estimate_travel_time,
+    get_commute_success,
+    get_commute_matrix,
+    get_commute_availability_series,
+)
 from tests.conftest import insert_snapshots
 
 
@@ -161,3 +167,37 @@ def test_matrix_midnight_rollover(db, monkeypatch):
     assert bucket["bike_probability"] == pytest.approx(1.0)
     assert bucket["dock_probability"] == pytest.approx(1.0)
     assert bucket["success_probability"] == pytest.approx(1.0)
+
+
+# ── get_commute_availability_series ────────────────────────────────────────
+
+def test_availability_series_shape(db):
+    series = get_commute_availability_series(db, "S1", "S2", day_of_week=0)
+    assert series["day_of_week"] == 0
+    assert len(series["slots"]) == 288
+    assert series["slots"][0]["minute"] == 0
+    assert series["slots"][1]["minute"] == 5
+    assert series["slots"][-1]["minute"] == 1435
+
+
+def test_availability_series_absolute_counts(db):
+    """Values are raw mean available bikes/docks, not probabilities."""
+    insert_snapshots(db, "S1", day_of_week=2, minute_of_day=8 * 60, count=5, bikes=3, docks=0)
+    insert_snapshots(db, "S2", day_of_week=2, minute_of_day=8 * 60, count=5, bikes=0, docks=4)
+
+    series = get_commute_availability_series(db, "S1", "S2", day_of_week=2)
+    slot = next(s for s in series["slots"] if s["minute"] == 8 * 60)
+
+    assert slot["bikes_available"] == pytest.approx(3.0)
+    assert slot["docks_available"] == pytest.approx(4.0)
+
+
+def test_availability_series_missing_station_returns_error(db):
+    result = get_commute_availability_series(db, "NONEXISTENT", "S2", day_of_week=0)
+    assert "error" in result
+
+
+def test_availability_series_no_data_is_none(db):
+    series = get_commute_availability_series(db, "S1", "S2", day_of_week=0)
+    assert all(s["bikes_available"] is None for s in series["slots"])
+    assert all(s["docks_available"] is None for s in series["slots"])

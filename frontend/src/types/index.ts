@@ -112,6 +112,19 @@ export interface CommuteMatrixResponse {
   days: CommuteMatrixDay[];
 }
 
+export interface CommuteAvailabilitySlot {
+  minute: number;
+  bikes_available: number | null;
+  docks_available: number | null;
+}
+
+export interface CommuteAvailabilitySeries {
+  origin: { id: string; name: string };
+  destination: { id: string; name: string };
+  day_of_week: DayOfWeek;
+  slots: CommuteAvailabilitySlot[];
+}
+
 // Slim per-slot entry from /api/map/bulk — station_id only, no name/lat/lng/
 // capacity (those are static and already available from /api/stations; the
 // bulk endpoint omits them to avoid repeating them across all 288 slots).

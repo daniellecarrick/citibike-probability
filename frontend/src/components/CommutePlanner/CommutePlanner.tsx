@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useCommute } from '../../hooks/useCommute';
 import { useCommuteMatrix } from '../../hooks/useCommuteMatrix';
+import { useCommuteAvailabilitySeries } from '../../hooks/useCommuteAvailabilitySeries';
 import { useStore } from '../../store';
 import { probabilityToColor, fmtPct } from '../../utils/colorScale';
 import { filterStations } from '../../utils/stationSearch';
+import { DAYS_FULL, formatTime } from '../../utils/time';
+import { AvailabilityChart } from './AvailabilityChart';
 import { CommuteMatrix } from './CommuteMatrix';
 import { RecommendationList } from './RecommendationList';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
@@ -12,14 +16,41 @@ import type { Station } from '../../types';
 
 type SavedItem = SavedCommute & { kind: 'starred' | 'recent' };
 
-const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const SAMPLE_COMMUTES = [
+  {
+    label: 'Park Slope to Midtown East',
+    originId: '8066575c-f8e9-4e14-95ea-8d25ceeae2ca',
+    originName: '1 St & 6 Ave',
+    destId: '2af3ecc3-4f43-468a-a7cc-bb4804ee3e7a',
+    destName: 'E 43 St & Madison Ave',
+  },
+  {
+    label: 'Upper East Side to Financial District',
+    originId: '66dd427e-0aca-11e7-82f6-3863bb44ef7c',
+    originName: '1 Ave & E 78 St',
+    destId: '3e9e50cc-f336-439f-bd0b-dec5499c038d',
+    destName: 'Albany St & Greenwich St',
+  },
+] as const;
 
-function formatTime(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  const ampm = h < 12 ? 'AM' : 'PM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+// Static placeholder data for the Patterns teaser cards — not real analytics.
+const PATTERN_BAR_HEIGHTS = [40, 65, 30, 80, 55, 90, 45, 70, 60, 35, 85, 50];
+const PATTERN_GRID_VALUES = [
+  0.2, 0.4, 0.9, 0.6, 0.3, 0.8, 0.5, 0.7, 0.9, 0.4, 0.2, 0.6,
+  0.5, 0.8, 0.3, 0.9, 0.6, 0.4, 0.7, 0.5, 0.2, 0.8, 0.6, 0.9,
+  0.3, 0.6, 0.5, 0.2, 0.8, 0.4, 0.7, 0.9, 0.5, 0.3, 0.6, 0.8,
+];
+
+function neighborhoodLabel(
+  stations: Station[],
+  originId: string,
+  destId: string,
+  fallbackOrigin: string,
+  fallbackDest: string,
+): string {
+  const origin = stations.find(s => s.station_id === originId);
+  const dest = stations.find(s => s.station_id === destId);
+  return `${origin?.neighborhood ?? fallbackOrigin} to ${dest?.neighborhood ?? fallbackDest}`;
 }
 
 function reliabilityLabel(p: number | null): string {
@@ -121,14 +152,16 @@ export function CommutePlanner({ stations }: Props) {
   const { commute, setCommute, selectedDay, selectedTime, setDay, setTime, setMapMode } = useStore();
   const { result, recommendations, loading } = useCommute();
   const { matrix } = useCommuteMatrix();
+  const { series } = useCommuteAvailabilitySeries();
   const { recent, starred, addRecent, toggleStar, isStarred, removeRecent } = useSavedCommutes();
 
   const [originId, setOriginId] = useState(commute?.originId ?? '');
   const [destId,   setDestId]   = useState(commute?.destId   ?? '');
   const [bikeType, setBikeType] = useState<'any' | 'classic' | 'ebike'>('any');
-  const [savedOpen, setSavedOpen] = useState(false);
 
-  const savedWrapRef = useRef<HTMLDivElement>(null);
+  const cardsScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
   // Sync if commute changes externally (e.g. from station panel)
   useEffect(() => {
@@ -138,22 +171,26 @@ export function CommutePlanner({ stations }: Props) {
     }
   }, [commute]);
 
-  useEffect(() => {
-    if (!savedOpen) return;
-    function onOutside(e: MouseEvent) {
-      if (savedWrapRef.current && !savedWrapRef.current.contains(e.target as Node)) {
-        setSavedOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', onOutside);
-    return () => document.removeEventListener('mousedown', onOutside);
-  }, [savedOpen]);
-
   const starredItems: SavedItem[] = starred.map(c => ({ ...c, kind: 'starred' as const }));
   const recentItems: SavedItem[]  = recent
     .filter(c => !isStarred(c.originId, c.destId))
     .map(c => ({ ...c, kind: 'recent' as const }));
   const allSaved: SavedItem[] = [...starredItems, ...recentItems].slice(0, 5);
+
+  function updateCardScrollState() {
+    const el = cardsScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }
+
+  useEffect(() => {
+    updateCardScrollState();
+  }, [allSaved.length]);
+
+  function scrollCards(dir: 'left' | 'right') {
+    cardsScrollRef.current?.scrollBy({ left: dir === 'left' ? -240 : 240, behavior: 'smooth' });
+  }
 
   function makeSaved() {
     const o = stations.find(s => s.station_id === originId);
@@ -169,16 +206,10 @@ export function CommutePlanner({ stations }: Props) {
     if (saved) addRecent(saved);
   }
 
-  function handleStar() {
-    const saved = makeSaved();
-    if (saved) toggleStar(saved);
-  }
-
   function handleLoadSaved(c: { originId: string; destId: string; bikeType: 'any' | 'classic' | 'ebike' }) {
     setOriginId(c.originId);
     setDestId(c.destId);
     setBikeType(c.bikeType);
-    setCommute({ originId: c.originId, destId: c.destId, bikeType: c.bikeType });
   }
 
   function handleRemoveSaved(c: SavedItem, e: React.MouseEvent) {
@@ -193,16 +224,12 @@ export function CommutePlanner({ stations }: Props) {
     if (commute) setCommute({ originId: destId, destId: originId, bikeType });
   }
 
-  function handleSample() {
+  function handleSample(sample: (typeof SAMPLE_COMMUTES)[number]) {
     setMapMode('stations');
     setDay(1); // Tuesday
     setTime(510); // 8:30 AM
-    // Pick first two stations as sample
-    if (stations.length >= 2) {
-      setCommute({ originId: stations[0].station_id, destId: stations[1].station_id, bikeType: 'any' });
-      setOriginId(stations[0].station_id);
-      setDestId(stations[1].station_id);
-    }
+    setOriginId(sample.originId);
+    setDestId(sample.destId);
   }
 
   const hasCommute = result !== null;
@@ -210,100 +237,40 @@ export function CommutePlanner({ stations }: Props) {
   const pColor = probabilityToColor(p);
 
   return (
+    <div className="commute-planner">
+    {!commute && (
     <>
-      {/* Quick-access: starred + recent commutes */}
-      {allSaved.length > 0 && (
-        <div className="saved-commutes-section" ref={savedWrapRef}>
-          {allSaved.length <= 2 ? (
-            allSaved.map((c, i) => (
-              <div key={i} className="saved-commute-row">
-                <button className="saved-commute-load" onClick={() => handleLoadSaved(c)}>
-                  <span className={c.kind === 'starred' ? 'saved-commute-star' : 'saved-commute-clock'}>
-                    {c.kind === 'starred' ? '★' : '↺'}
-                  </span>
-                  <span className="saved-commute-route">{c.originName} → {c.destName}</span>
-                </button>
-                <button className="saved-commute-remove" onClick={e => handleRemoveSaved(c, e)} aria-label="Remove">×</button>
-              </div>
-            ))
-          ) : (
-            <div className="saved-dropdown">
-              <button className="saved-dropdown-trigger" onClick={() => setSavedOpen(o => !o)}>
-                <span>Saved routes · {allSaved.length}</span>
-                <span className={`saved-dropdown-chevron${savedOpen ? ' open' : ''}`}>▾</span>
-              </button>
-              {savedOpen && (
-                <div className="saved-dropdown-panel">
-                  {allSaved.map((c, i) => (
-                    <div key={i} className="saved-commute-row">
-                      <button className="saved-commute-load" onClick={() => { handleLoadSaved(c); setSavedOpen(false); }}>
-                        <span className={c.kind === 'starred' ? 'saved-commute-star' : 'saved-commute-clock'}>
-                          {c.kind === 'starred' ? '★' : '↺'}
-                        </span>
-                        <span className="saved-commute-route">{c.originName} → {c.destName}</span>
-                      </button>
-                      <button className="saved-commute-remove" onClick={e => handleRemoveSaved(c, e)} aria-label="Remove">×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
+    <div className="commute-hero">
+    <h1>How Reliable is Your CitiBike Route?</h1>
+    <p className="commute-subtitle">
+      See the odds of finding a bike and an open dock before you leave — for any route, any day, any time.
+    </p>
       {/* Planner card */}
-      <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <span className="card-title" style={{ marginBottom: 0 }}>Plan your commute</span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {originId && destId && (
-              <button
-                className={`swap-btn${isStarred(originId, destId) ? ' starred' : ''}`}
-                onClick={handleStar}
-                title={isStarred(originId, destId) ? 'Remove from starred' : 'Star this commute'}
-              >
-                {isStarred(originId, destId) ? '★' : '☆'}
-              </button>
-            )}
-            <button className="swap-btn" onClick={handleSwap} title="Swap origin and destination">⇅</button>
+      <div className="card planner-card">
+        <div className="planner-input-row">
+          <div className="planner-combo-wrap">
+            <StationCombo
+              stations={stations}
+              value={originId}
+              onChange={setOriginId}
+              dotColor="#16181d"
+              placeholder="Choose origin station…"
+            />
           </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <StationCombo
-            stations={stations}
-            value={originId}
-            onChange={setOriginId}
-            dotColor="#16181d"
-            placeholder="Choose origin station…"
-          />
-          <StationCombo
-            stations={stations}
-            value={destId}
-            onChange={setDestId}
-            dotColor={probabilityToColor(0.95)}
-            placeholder="Choose destination…"
-          />
-
-          <div>
-            <span className="field-label">Bike type</span>
-            <div className="segmented">
-              {(['any', 'classic', 'ebike'] as const).map(t => (
-                <button
-                  key={t}
-                  className={`segmented-btn${bikeType === t ? ' active' : ''}`}
-                  onClick={() => setBikeType(t)}
-                >
-                  {t === 'any' ? 'Any Bike' : t === 'classic' ? 'Classic' : 'E-Bike'}
-                </button>
-              ))}
-            </div>
+          <button className="planner-arrow-btn" onClick={handleSwap} title="Swap origin and destination">
+            <span className="arrow-icon" aria-hidden="true">⇅</span>
+          </button>
+          <div className="planner-combo-wrap">
+            <StationCombo
+              stations={stations}
+              value={destId}
+              onChange={setDestId}
+              dotColor={probabilityToColor(0.95)}
+              placeholder="Choose destination…"
+            />
           </div>
-
           <button
-            className="cta-btn"
-            style={{ width: '100%', textAlign: 'center', marginBottom: 0 }}
+            className="cta-btn planner-cta-btn"
             disabled={!originId || !destId}
             onClick={handleCalc}
           >
@@ -312,94 +279,159 @@ export function CommutePlanner({ stations }: Props) {
         </div>
       </div>
 
-      {/* Day × time breakdown — appears once a commute is set, drives the forecast below */}
-      {matrix && <CommuteMatrix matrix={matrix} />}
+      {/* Quick-access: starred, then recent, then sample commutes */}
+      <div className="commute-cards-wrap">
+        <button
+          className="commute-cards-arrow"
+          onClick={() => scrollCards('left')}
+          disabled={!canScrollLeft}
+          aria-label="Scroll left"
+        >
+          ‹
+        </button>
+        <div className="commute-cards-row" ref={cardsScrollRef} onScroll={updateCardScrollState}>
+          {allSaved.map((c, i) => (
+            <div key={i} className="sample-commute-card saved-quick-card">
+              <span className={`commute-card-badge ${c.kind === 'starred' ? 'badge-starred' : 'badge-recent'}`}>
+                {c.kind === 'starred' ? 'Starred' : 'Recent'}
+              </span>
+              <button className="saved-quick-load" onClick={() => handleLoadSaved(c)}>
+                <div className="sample-commute-label">
+                  {neighborhoodLabel(stations, c.originId, c.destId, c.originName, c.destName)}
+                </div>
+                <div className="sample-commute-route">
+                  {c.originName} <span className="sample-commute-arrow">→</span> {c.destName}
+                </div>
+              </button>
+              <button className="saved-quick-remove" onClick={e => handleRemoveSaved(c, e)} aria-label="Remove">×</button>
+            </div>
+          ))}
+          {SAMPLE_COMMUTES.map(sample => (
+            <button
+              key={sample.label}
+              className="sample-commute-card"
+              onClick={() => handleSample(sample)}
+            >
+              <span className="commute-card-badge">Sample</span>
+              <div className="sample-commute-label">{sample.label}</div>
+              <div className="sample-commute-route">
+                {sample.originName} <span className="sample-commute-arrow">→</span> {sample.destName}
+              </div>
+            </button>
+          ))}
+        </div>
+        <button
+          className="commute-cards-arrow"
+          onClick={() => scrollCards('right')}
+          disabled={!canScrollRight}
+          aria-label="Scroll right"
+        >
+          ›
+        </button>
+      </div>
+    </div>
 
-      {/* Empty state / result */}
-      {!hasCommute && !loading && (
-        <div className="card">
-          <div className="empty-eyebrow">The Forecast</div>
-          <div className="empty-headline">Can you rely on Citi Bike for this trip?</div>
-          <div className="empty-body">
-            We analyzed millions of station observations to predict where bikes and docks are likely
-            to be available throughout the week.
-            <br /><br />
-            Pick an origin and destination above to get your commute forecast — then explore the
-            day-by-day breakdown to find the easiest time to go.
-          </div>
-          <button className="cta-btn" onClick={handleSample}>
-            Try a sample commute →
-          </button>
-          <div className="scale-hint">
-            {[0, 0.5, 1].map(v => (
-              <div key={v} style={{ width: 10, height: 10, borderRadius: '50%', background: probabilityToColor(v) }} />
-            ))}
-            <span>Pink means scarce, blue means plentiful</span>
-          </div>
+      {/* Patterns teaser */}
+      <div className="patterns-teaser">
+        <div className="section-heading">
+          <h2 className="section-heading-title">Explore Patterns</h2>
+        </div>
+        <div className="patterns-teaser-grid">
+          <Link to="/patterns" className="card pattern-card">
+            <div className="pattern-card-viz">
+              <div className="pattern-viz-bars">
+                {PATTERN_BAR_HEIGHTS.map((h, i) => (
+                  <div key={i} style={{ height: `${h}%` }} />
+                ))}
+              </div>
+            </div>
+            <div className="pattern-card-title">Busiest hours across the network</div>
+            <span className="pattern-card-link">Go to insight →</span>
+          </Link>
+          <Link to="/patterns" className="card pattern-card">
+            <div className="pattern-card-viz">
+              <div className="pattern-viz-grid">
+                {PATTERN_GRID_VALUES.map((v, i) => (
+                  <div key={i} style={{ background: probabilityToColor(v) }} />
+                ))}
+              </div>
+            </div>
+            <div className="pattern-card-title">Neighborhoods trending more reliable</div>
+            <span className="pattern-card-link">Go to insight →</span>
+          </Link>
+        </div>
+      </div>
+    </>
+    )}
+
+      {/* Results: forecast + day×time heatmap fill the row together */}
+      {commute && (
+        <div className="results-grid">
+          {loading && <div className="loading">Calculating forecast…</div>}
+
+          {hasCommute && result && (
+            <div className="card forecast-card">
+              <div className="forecast-header">
+                <div className="forecast-eyebrow">
+                  {DAYS_FULL[selectedDay]} · {formatTime(selectedTime)}
+                </div>
+                <div className="forecast-title">Your commute forecast</div>
+              </div>
+
+              <div className="forecast-hero">
+                <div className="big-stat-row">
+                  <span className="big-stat-number" style={{ color: pColor }}>
+                    {p !== null ? Math.round(p * 100) : '—'}
+                  </span>
+                  <span className="big-stat-pct" style={{ color: pColor }}>%</span>
+                </div>
+                <div
+                  className="reliability-badge"
+                  style={{ background: `${pColor}20`, color: pColor, marginBottom: 8 }}
+                >
+                  {reliabilityLabel(p)}
+                </div>
+                <div className="forecast-sentence">{forecastSentence(p)}</div>
+              </div>
+
+              <div className="substat-strip">
+                <div className="substat">
+                  <div className="substat-value" style={{ color: probabilityToColor(result.bike_probability) }}>
+                    {fmtPct(result.bike_probability)}
+                  </div>
+                  <div className="substat-label">Bike avail.</div>
+                </div>
+                <div className="substat">
+                  <div className="substat-value" style={{ color: probabilityToColor(result.dock_probability) }}>
+                    {fmtPct(result.dock_probability)}
+                  </div>
+                  <div className="substat-label">Dock avail.</div>
+                </div>
+                <div className="substat">
+                  <div className="substat-value" style={{ color: '#16181d' }}>
+                    {result.travel_minutes}
+                  </div>
+                  <div className="substat-label">min ride</div>
+                </div>
+              </div>
+
+              <div className="tip-row">
+                💡 Departs {result.departure_time} · arrives ~{result.arrival_time}
+              </div>
+            </div>
+          )}
+
+          {matrix && <CommuteMatrix matrix={matrix} />}
         </div>
       )}
 
-      {loading && <div className="loading">Calculating forecast…</div>}
+      {/* Absolute bike/dock availability across the day */}
+      {series && <AvailabilityChart series={series} />}
 
-      {hasCommute && result && (
-        <>
-          {/* Forecast card */}
-          <div className="card forecast-card">
-            <div className="forecast-header">
-              <div className="forecast-eyebrow">
-                {DAYS_FULL[selectedDay]} · {formatTime(selectedTime)}
-              </div>
-              <div className="forecast-title">Your commute forecast</div>
-            </div>
-
-            <div className="forecast-hero">
-              <div className="big-stat-row">
-                <span className="big-stat-number" style={{ color: pColor }}>
-                  {p !== null ? Math.round(p * 100) : '—'}
-                </span>
-                <span className="big-stat-pct" style={{ color: pColor }}>%</span>
-              </div>
-              <div
-                className="reliability-badge"
-                style={{ background: `${pColor}20`, color: pColor, marginBottom: 8 }}
-              >
-                {reliabilityLabel(p)}
-              </div>
-              <div className="forecast-sentence">{forecastSentence(p)}</div>
-            </div>
-
-            <div className="substat-strip">
-              <div className="substat">
-                <div className="substat-value" style={{ color: probabilityToColor(result.bike_probability) }}>
-                  {fmtPct(result.bike_probability)}
-                </div>
-                <div className="substat-label">Bike avail.</div>
-              </div>
-              <div className="substat">
-                <div className="substat-value" style={{ color: probabilityToColor(result.dock_probability) }}>
-                  {fmtPct(result.dock_probability)}
-                </div>
-                <div className="substat-label">Dock avail.</div>
-              </div>
-              <div className="substat">
-                <div className="substat-value" style={{ color: '#16181d' }}>
-                  {result.travel_minutes}
-                </div>
-                <div className="substat-label">min ride</div>
-              </div>
-            </div>
-
-            <div className="tip-row">
-              💡 Departs {result.departure_time} · arrives ~{result.arrival_time}
-            </div>
-          </div>
-
-          {/* Recommendations */}
-          {recommendations.length > 0 && (
-            <RecommendationList recommendations={recommendations} currentTime={selectedTime} />
-          )}
-        </>
+      {/* Recommendations */}
+      {hasCommute && result && recommendations.length > 0 && (
+        <RecommendationList recommendations={recommendations} currentTime={selectedTime} />
       )}
-    </>
+    </div>
   );
 }

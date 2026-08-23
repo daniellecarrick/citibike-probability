@@ -1,7 +1,7 @@
-export function TrendsPage() {
+export function PatternsPage() {
   return (
     <div className="card">
-      <div className="empty-eyebrow">Trends</div>
+      <div className="empty-eyebrow">Patterns</div>
       <div className="empty-headline">Coming soon</div>
       <div className="empty-body">
         System-wide patterns over time — which stations are getting more

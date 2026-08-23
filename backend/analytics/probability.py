@@ -71,11 +71,12 @@ def get_availability_probability(
     rollup table).
     """
     if rollup.rollup_available(conn):
-        total, avail, _ = rollup.fetch_station_probability_window(
+        total, avail, sum_inventory = rollup.fetch_station_probability_window(
             conn, station_id, day_of_week, time_of_day, metric, window_minutes  # type: ignore[arg-type]
         )
         return {
             "probability": (avail / total) if total > 0 else None,
+            "mean_inventory": (sum_inventory / total) if total > 0 else None,
             "sample_count": total,
             "metric": metric,
         }
@@ -122,9 +123,11 @@ def get_availability_probability(
 
     total = rows["total"] or 0
     avail = rows["avail_count"] or 0
+    mean_inventory = rows["mean_inventory"]
 
     return {
         "probability": (avail / total) if total > 0 else None,
+        "mean_inventory": mean_inventory if total > 0 else None,
         "sample_count": total,
         "metric": metric,
     }

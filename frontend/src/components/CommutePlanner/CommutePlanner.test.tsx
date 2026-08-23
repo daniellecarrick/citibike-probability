@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { CommutePlanner } from './CommutePlanner';
 import { useStore } from '../../store';
 import type { Station } from '../../types';
@@ -49,7 +50,11 @@ beforeEach(() => {
 });
 
 function renderPlanner() {
-  return render(<CommutePlanner stations={STATIONS} />);
+  return render(
+    <MemoryRouter>
+      <CommutePlanner stations={STATIONS} />
+    </MemoryRouter>
+  );
 }
 
 describe('Get forecast button', () => {
@@ -60,30 +65,46 @@ describe('Get forecast button', () => {
   });
 });
 
-describe('star button', () => {
-  it('is not rendered when origin and destination are empty', () => {
+describe('sample commutes', () => {
+  it('renders the two hardcoded sample commute cards', () => {
     renderPlanner();
-    const starBtn = screen.queryByTitle(/star this commute/i);
-    expect(starBtn).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Park Slope to Midtown East/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Upper East Side to Financial District/i })).toBeInTheDocument();
+  });
+
+  it('clicking a sample commute card fills the fields without running the forecast', () => {
+    renderPlanner();
+    fireEvent.click(screen.getByRole('button', { name: /Park Slope to Midtown East/i }));
+    expect(useStore.getState().commute).toBeNull();
+    expect(screen.getByRole('button', { name: /get forecast/i })).toBeEnabled();
+  });
+
+  it('pressing Get forecast after selecting a sample commute sets the commute', () => {
+    renderPlanner();
+    fireEvent.click(screen.getByRole('button', { name: /Park Slope to Midtown East/i }));
+    fireEvent.click(screen.getByRole('button', { name: /get forecast/i }));
+    expect(useStore.getState().commute).toMatchObject({
+      originId: '8066575c-f8e9-4e14-95ea-8d25ceeae2ca',
+      destId: '2af3ecc3-4f43-468a-a7cc-bb4804ee3e7a',
+    });
   });
 });
 
-describe('saved commutes — inline pills (≤ 2 items)', () => {
-  it('renders inline pill rows when there are 2 or fewer saved items', () => {
-    mockUseSavedCommutes.mockReturnValue(makeSavedHook({
-      starred: [{ originId: 'S1', originName: 'Park Ave', destId: 'S2', destName: 'Grand St', bikeType: 'any', savedAt: 1 }],
-    }));
+describe('saved commutes', () => {
+  it('renders a Starred badge for starred items and a Recent badge for recent items', () => {
+    const starredC = { originId: 'S1', originName: 'Park Ave', destId: 'S2', destName: 'Grand St', bikeType: 'any' as const, savedAt: 1 };
+    mockUseSavedCommutes.mockReturnValue(makeSavedHook({ starred: [starredC] }));
     renderPlanner();
-    expect(screen.getByText(/Park Ave → Grand St/)).toBeInTheDocument();
-    expect(screen.queryByText(/Saved routes/)).not.toBeInTheDocument();
+    expect(screen.getByText('Starred')).toBeInTheDocument();
   });
 
-  it('clicking a saved row loads the commute', () => {
+  it('clicking a saved card fills the fields without running the forecast', () => {
     const c = { originId: 'S1', originName: 'Park Ave', destId: 'S2', destName: 'Grand St', bikeType: 'any' as const, savedAt: 1 };
     mockUseSavedCommutes.mockReturnValue(makeSavedHook({ starred: [c] }));
     renderPlanner();
-    fireEvent.click(screen.getByRole('button', { name: /Park Ave → Grand St/i }));
-    expect(useStore.getState().commute).toMatchObject({ originId: 'S1', destId: 'S2' });
+    fireEvent.click(screen.getByRole('button', { name: /Grand St/i }));
+    expect(useStore.getState().commute).toBeNull();
+    expect(screen.getByRole('button', { name: /get forecast/i })).toBeEnabled();
   });
 
   it('clicking the × button calls removeRecent and does NOT load the commute', () => {
@@ -98,26 +119,10 @@ describe('saved commutes — inline pills (≤ 2 items)', () => {
   });
 });
 
-describe('saved commutes — dropdown (> 2 items)', () => {
-  function manyItems() {
-    return [
-      { originId: 'S1', originName: 'Alpha', destId: 'S2', destName: 'Beta',  bikeType: 'any' as const, savedAt: 1 },
-      { originId: 'S1', originName: 'Alpha', destId: 'S2', destName: 'Gamma', bikeType: 'any' as const, savedAt: 2 },
-      { originId: 'S1', originName: 'Alpha', destId: 'S2', destName: 'Delta', bikeType: 'any' as const, savedAt: 3 },
-    ];
-  }
-
-  it('renders a dropdown trigger instead of inline pills when > 2 items', () => {
-    mockUseSavedCommutes.mockReturnValue(makeSavedHook({ starred: manyItems() }));
+describe('commute submitted', () => {
+  it('hides the planner form once a commute is set', () => {
+    useStore.setState({ commute: { originId: 'S1', destId: 'S2', bikeType: 'any' } });
     renderPlanner();
-    expect(screen.getByText(/Saved routes/)).toBeInTheDocument();
-    expect(screen.queryByText(/Alpha → Beta/)).not.toBeInTheDocument();
-  });
-
-  it('clicking the trigger opens the dropdown panel', () => {
-    mockUseSavedCommutes.mockReturnValue(makeSavedHook({ starred: manyItems() }));
-    renderPlanner();
-    fireEvent.click(screen.getByText(/Saved routes/));
-    expect(screen.getByText(/Alpha → Beta/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /get forecast/i })).not.toBeInTheDocument();
   });
 });

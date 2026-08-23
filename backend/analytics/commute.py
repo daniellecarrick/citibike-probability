@@ -242,3 +242,55 @@ def get_commute_matrix(
         "bucket_minutes": bucket_minutes,
         "days": days,
     }
+
+
+def get_commute_availability_series(
+    conn: sqlite3.Connection,
+    origin_id: str,
+    dest_id: str,
+    day_of_week: int,
+) -> dict:
+    """
+    288 five-minute-slot series for one day, pairing the origin's mean
+    available *bikes* against the destination's mean available *docks* at
+    the same clock time — the raw absolute-count inputs the success
+    probability is built from, not the probability itself.
+    """
+    origin = _get_station(conn, origin_id)
+    dest = _get_station(conn, dest_id)
+    if not origin or not dest:
+        return {"error": "Station not found"}
+
+    slots: list[dict] = []
+
+    if rollup.rollup_available(conn):
+        origin_day = rollup.fetch_station_all_days_slot_data(conn, origin_id, "bikes").get(day_of_week, {})
+        dest_day = rollup.fetch_station_all_days_slot_data(conn, dest_id, "docks").get(day_of_week, {})
+        for raw_slot in range(288):
+            o_total, _, o_sum = origin_day.get(raw_slot, (0, 0, 0.0))
+            d_total, _, d_sum = dest_day.get(raw_slot, (0, 0, 0.0))
+            slots.append({
+                "minute": raw_slot * 5,
+                "bikes_available": (o_sum / o_total) if o_total > 0 else None,
+                "docks_available": (d_sum / d_total) if d_total > 0 else None,
+            })
+    else:
+        # No rollup table yet (fresh deploy, or a test DB) — fall back to a
+        # raw scan per slot. Correct but slow; the rollup path above is what
+        # runs in production once the collector's first rebuild has landed.
+        for raw_slot in range(288):
+            minute = raw_slot * 5
+            bike = get_availability_probability(conn, origin_id, day_of_week, minute, "bikes", window_minutes=5)
+            dock = get_availability_probability(conn, dest_id, day_of_week, minute, "docks", window_minutes=5)
+            slots.append({
+                "minute": minute,
+                "bikes_available": bike["mean_inventory"],
+                "docks_available": dock["mean_inventory"],
+            })
+
+    return {
+        "origin": {"id": origin_id, "name": origin["station_name"]},
+        "destination": {"id": dest_id, "name": dest["station_name"]},
+        "day_of_week": day_of_week,
+        "slots": slots,
+    }

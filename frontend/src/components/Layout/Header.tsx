@@ -6,7 +6,7 @@ import logoSrc from '../../images/logo.png';
 const TABS = [
   { path: '/commute', label: 'Commute' },
   { path: '/map',     label: 'Map' },
-  { path: '/trends',  label: 'Trends' },
+  { path: '/patterns', label: 'Patterns' },
 ];
 
 export function Header() {
@@ -18,13 +18,13 @@ export function Header() {
   return (
     <header className="header">
       {/* Logo */}
-      <div className="logo-mark" aria-hidden>
+      {/* <div className="logo-mark" aria-hidden>
         <img src={logoSrc} alt="" width="34" height="34" style={{ display: 'block', borderRadius: 10, objectFit: 'cover' }} />
       </div>
 
       <div className="logo-wordmark">
-        <span className="logo-title">Will There Be A Bike?</span>
-      </div>
+        <span className="logo-title">How Reliable is CitiBike?</span>
+      </div> */}
 
       {/* Tabs */}
       <div className="header-tabs">

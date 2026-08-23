@@ -7,16 +7,19 @@
 
   /* Neutrals */
   --ink:          #16181d;
+  --text-strong: #e7e9ee;
   --text-muted:   #6c727e;
   --text-faint:   #9aa1ad;
   --hairline:     #c2cad4;
-  --app-bg:       #f3f4f7;
+  --app-bg:       #0085e4;
   --rail-bg:      #f7f8fa;
   --card-bg:      #ffffff;
+  --tint-blue:    #eaf4ff;
   --card-border:  #ebedf0;
   --input-border: #e3e6ea;
   --divider:      #eef0f3;
   --control-track:#f0f1f4;
+  --bg-light:     rgba(255,255,255,0.4);
 
   /* Map */
   --map-water:    #e9eef3;
@@ -54,7 +57,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 button { cursor: pointer; font-family: inherit; }
-
+h1 {
+  color: var(--text-strong);
+  font-family: var(--sans-serif);
+  font-size: 56px;
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  text-wrap: balance;
+}
 /* ─── App Layout ────────────────────────────────────────────────── */
 .app {
   display: flex;
@@ -71,8 +81,6 @@ button { cursor: pointer; font-family: inherit; }
 /* ─── Header ────────────────────────────────────────────────────── */
 .header {
   height: 66px;
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--card-border);
   padding: 0 22px;
   display: flex;
   align-items: center;
@@ -117,22 +125,26 @@ button { cursor: pointer; font-family: inherit; }
 /* Tab row */
 .header-tabs {
   display: flex;
-  gap: 4px;
-  margin-left: 8px;
+  align-items: stretch;
+  gap: 22px;
+  margin-left: 4px;
+  align-self: stretch;
+  font-weight: 800;
 }
 .header-tab {
-  padding: 8px 16px;
+  display: flex;
+  align-items: center;
   border: none;
   background: none;
-  border-radius: var(--r-sm);
+  border-bottom: 5px solid transparent;
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-muted);
-  transition: all .15s;
+  color: var(--text-strong);
+  transition: color .15s, border-color .15s;
 }
-.header-tab:hover { background: var(--control-track); color: var(--ink); }
-.header-tab.active { background: var(--ink); color: #fff; font-weight: 600; }
+.header-tab:hover { color: var(--ink); }
+.header-tab.active { border-bottom-color: var(--text-strong); }
 
 /* Day pills */
 .day-pills-label {
@@ -193,19 +205,19 @@ button { cursor: pointer; font-family: inherit; }
 }
 
 /* Admin nav */
-.header-nav { display: flex; gap: 4px; margin-left: auto; }
+.header-nav { display: flex; gap: 18px; align-items: center; margin-left: auto; }
 .nav-btn {
-  padding: 5px 12px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--card-border);
+  padding: 0;
+  border: none;
   background: none;
-  color: var(--text-muted);
+  color: var(--text-strong);
   font-size: 12px;
   font-weight: 500;
-  transition: all .15s;
+  opacity: 0.8;
+  transition: opacity .15s;
 }
-.nav-btn:hover { background: var(--control-track); color: var(--ink); }
-.nav-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.nav-btn:hover { opacity: 1; text-decoration: underline; }
+.nav-btn.active { opacity: 1; font-weight: 700; }
 
 /* ─── Methodology modal ─────────────────────────────────────────── */
 .methodology-backdrop {
@@ -424,28 +436,177 @@ button { cursor: pointer; font-family: inherit; }
 }
 .field-select:focus { outline: none; border-color: var(--ink); }
 
+/* ─── Planner card (Commute page) ───────────────────────────────── */
+.planner-card {
+  width: 100%;
+  max-width: 820px;
+  padding: 24px;
+}
+.planner-input-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+.planner-combo-wrap { flex: 1 1 0; min-width: 0; }
+.planner-arrow-btn {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: color .15s, background .15s;
+}
+.planner-arrow-btn:hover { color: var(--ink); background: var(--control-track); }
+.planner-arrow-btn .arrow-icon {
+  display: inline-block;
+  font-size: 17px;
+  transform: rotate(90deg);
+}
+.planner-cta-btn {
+  height: 64px;
+  padding: 0 28px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+/* ─── Sample / saved commute cards ───────────────────────────────── */
+.commute-cards-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 820px;
+}
+.commute-cards-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.commute-cards-row::-webkit-scrollbar { display: none; }
+.commute-cards-arrow {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--input-border);
+  background: var(--bg-light);
+  color: var(--text-muted);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+.commute-cards-arrow:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
+.commute-cards-arrow:disabled { opacity: 0.3; cursor: default; }
+.sample-commute-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  border-radius: 12px;
+  background: var(--bg-light);
+  padding: 26px 14px 12px;
+  text-align: left;
+  flex: 0 0 220px;
+  width: 220px;
+  transition: border-color .15s, background .15s;
+}
+.sample-commute-card:hover { border-color: var(--ink); background: var(--control-track); }
+.sample-commute-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.sample-commute-route {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.sample-commute-arrow { color: var(--text-faint); }
+
+.commute-card-badge {
+  position: absolute;
+  top: 8px;
+  left: 14px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: var(--control-track);
+  color: var(--text-muted);
+}
+.commute-card-badge.badge-starred { background: rgba(245,184,0,.16); color: #a67600; }
+.commute-card-badge.badge-recent  { background: rgba(31,162,255,.12); color: #0c7cd5; }
+
+.saved-quick-card { padding-right: 34px; }
+.saved-quick-load {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+.saved-quick-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px; height: 22px;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .1s, color .1s;
+}
+.saved-quick-remove:hover { background: var(--control-track); color: var(--ink); }
+
 /* ─── Station combo ─────────────────────────────────────────────── */
 .station-combo {
   border: 1px solid var(--input-border);
-  border-radius: 11px;
+  border-radius: 12px;
   background: var(--card-bg);
-  height: 52px;
+  height: 64px;
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  gap: 10px;
+  padding: 0 16px;
+  gap: 12px;
   transition: border-color .15s;
   cursor: pointer;
 }
 .station-combo:hover, .station-combo.open { border-color: var(--ink); }
 .station-combo-dot {
-  width: 10px; height: 10px;
+  width: 12px; height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 .station-combo-text { flex: 1; min-width: 0; }
 .station-combo-name {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
@@ -454,12 +615,12 @@ button { cursor: pointer; font-family: inherit; }
 }
 .station-combo-hood {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--text-faint);
   letter-spacing: 0.04em;
 }
 .station-combo-placeholder {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-faint);
 }
 .station-dropdown {
@@ -531,23 +692,51 @@ button { cursor: pointer; font-family: inherit; }
   color: var(--ink);
 }
 
-/* ─── Swap button ───────────────────────────────────────────────── */
-.swap-btn {
-  width: 30px; height: 30px;
-  border: 1px solid var(--input-border);
-  border-radius: 50%;
-  background: var(--card-bg);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px;
-  color: var(--text-muted);
-  transition: all .15s;
+/* ─── Results grid (forecast + heatmap side by side) ─────────────── */
+.results-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(380px, 540px);
+  justify-content: center;
+  align-items: start;
+  gap: 20px;
+  width: 100%;
+  max-width: 1000px;
 }
-.swap-btn:hover { border-color: var(--ink); color: var(--ink); }
+.results-grid > .loading { grid-column: 1 / -1; }
+@media (max-width: 900px) {
+  .results-grid { grid-template-columns: 1fr; max-width: 540px; }
+}
+
+/* ─── Availability chart (bikes @ origin vs. docks @ destination) ──── */
+.availability-chart { width: 100%; max-width: 1000px; }
+.availability-chart svg { display: block; width: 100%; height: auto; }
+.availability-chart-legend {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+.availability-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.availability-legend-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.availability-chart-empty {
+  padding: 24px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-faint);
+}
 
 /* ─── Forecast card ─────────────────────────────────────────────── */
-.forecast-card { padding: 0; }
+.forecast-card { padding: 0; width: 100%; }
 .forecast-header {
-  background: linear-gradient(180deg,#fafbfc,#fff);
   padding: 16px 18px;
   border-bottom: 1px solid var(--divider);
 }
@@ -675,7 +864,7 @@ button { cursor: pointer; font-family: inherit; }
 }
 .cta-btn {
   display: inline-block;
-  background: var(--ink);
+  background: var(--scale-5);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -685,7 +874,6 @@ button { cursor: pointer; font-family: inherit; }
   font-weight: 600;
   cursor: pointer;
   transition: opacity .15s;
-  margin-bottom: 16px;
 }
 .cta-btn:hover { opacity: 0.88; }
 .scale-hint {
@@ -702,7 +890,7 @@ button { cursor: pointer; font-family: inherit; }
   border: 1px solid var(--card-border);
   border-radius: var(--r-card);
   padding: 16px;
-  margin-bottom: 16px;
+  width: 100%;
 }
 .commute-matrix svg { display: block; max-width: 100%; }
 .commute-matrix-footer {
@@ -865,95 +1053,6 @@ button { cursor: pointer; font-family: inherit; }
 .nearby-name { flex: 1; font-size: 13px; color: var(--ink); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nearby-dist { font-family: var(--mono); font-size: 10px; color: var(--text-faint); white-space: nowrap; }
 .nearby-pct { font-size: 13px; font-weight: 600; white-space: nowrap; }
-
-/* ─── Saved commutes quick-access ───────────────────────────────── */
-.saved-commutes-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 2px;
-}
-.saved-commute-row {
-  display: flex;
-  align-items: stretch;
-  border-radius: 8px;
-  overflow: hidden;
-}
-.saved-commute-load {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  padding: 7px 8px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  transition: background .12s;
-}
-.saved-commute-load:hover { background: var(--control-track); border-radius: 8px 0 0 8px; }
-.saved-commute-remove {
-  flex-shrink: 0;
-  width: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 15px;
-  cursor: pointer;
-  border-radius: 0 8px 8px 0;
-  transition: background .1s, color .1s;
-}
-.saved-commute-remove:hover { background: var(--control-track); color: var(--ink); }
-.saved-commute-star { color: #f5b800; font-size: 13px; flex-shrink: 0; }
-.saved-commute-clock { color: var(--text-muted); font-size: 13px; flex-shrink: 0; }
-.saved-commute-route {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.saved-dropdown { position: relative; }
-.saved-dropdown-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 7px 8px;
-  background: none;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink);
-  transition: background .12s;
-}
-.saved-dropdown-trigger:hover { background: var(--control-track); }
-.saved-dropdown-chevron { color: var(--text-muted); transition: transform .15s; margin-left: 6px; }
-.saved-dropdown-chevron.open { transform: rotate(180deg); }
-.saved-dropdown-panel {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.1);
-  overflow: hidden;
-}
-.saved-dropdown-panel .saved-commute-row { border-radius: 0; }
-.saved-dropdown-panel .saved-commute-row + .saved-commute-row {
-  border-top: 1px solid var(--card-border);
-}
-.swap-btn.starred { color: #f5b800; }
 
 /* ─── Metric group (header control) ─────────────────────────────── */
 .metric-group {
@@ -1175,15 +1274,191 @@ button { cursor: pointer; font-family: inherit; }
   margin-top: 3px;
 }
 
-/* ─── Full-width page routes (Commute, Trends) ─────────────────────── */
+/* ─── Full-width page routes (Commute, Patterns) ────────────────────── */
 .page-container {
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   flex: 1;
   padding: 32px 24px 48px;
 }
 .page-container > * {
-  max-width: 520px;
   margin: 0 auto;
+}
+/* Vertically centers the commute planner within the viewport on landing;
+   `safe center` keeps it top-anchored instead of clipping once content
+   (forecast results, etc.) grows taller than the viewport. */
+.page-container-centered {
+  justify-content: safe center;
+}
+
+.commute-planner {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+.commute-planner > * { margin: 0 auto; }
+
+/* Hero area (heading, planner card, quick-access row) fills ~90% of the
+   viewport on landing, pushing the Patterns teaser below the fold. */
+.commute-hero {
+  width: 100%;
+  min-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background: radial-gradient(ellipse 60% 55% at 50% 38%, rgba(255,255,255,0.14), rgba(255,255,255,0) 70%);
+}
+.commute-subtitle {
+  text-align: center;
+  color: var(--text-strong);
+  opacity: 0.8;
+  font-size: 15px;
+  max-width: 520px;
+  margin-top: -12px;
+}
+
+/* ─── Route summary bar (shown under the header once a commute is set) ── */
+.route-bar {
+  flex-shrink: 0;
+  height: 52px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--card-border);
+  z-index: 25;
+}
+.route-bar-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.route-bar-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #16181d;
+}
+.route-bar-dot-dest { background: #1fa2ff; }
+.route-bar-sep { color: var(--text-faint); }
+.route-bar-station { white-space: nowrap; }
+.route-bar-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.route-bar-edit {
+  margin-left: auto;
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-sm);
+  background: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: all .15s;
+}
+.route-bar-edit:hover { background: var(--control-track); color: var(--ink); }
+
+/* ─── Section heading (reusable across page sections) ───────────── */
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.section-heading-title {
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.section-heading-subtitle {
+  font-size: 12px;
+  color: var(--text-strong);
+  opacity: 0.75;
+}
+
+/* ─── Patterns teaser (Commute page) ─────────────────────────────── */
+.patterns-teaser {
+  width: 100%;
+  max-width: 820px;
+  background: var(--tint-blue);
+  border-radius: var(--r-card);
+  padding: 28px;
+  box-shadow: var(--shadow-card);
+}
+.patterns-teaser .section-heading-title { color: var(--ink); }
+.patterns-teaser .section-heading-subtitle { color: var(--text-muted); opacity: 1; }
+.patterns-teaser-grid {
+  display: flex;
+  gap: 14px;
+}
+.pattern-card {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-decoration: none;
+  transition: border-color .15s, background .15s;
+}
+.pattern-card:hover { border-color: var(--ink); }
+.pattern-card-viz {
+  height: 64px;
+  border-radius: 10px;
+  background: var(--control-track);
+  overflow: hidden;
+}
+.pattern-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pattern-card-link {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  transition: color .15s;
+}
+.pattern-card:hover .pattern-card-link { color: var(--ink); }
+
+/* Placeholder mini bar-chart viz */
+.pattern-viz-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+  padding: 10px 12px;
+}
+.pattern-viz-bars > div {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(180deg, #1fa2ff, #8b3df5);
+  opacity: 0.85;
+}
+
+/* Placeholder mini grid viz */
+.pattern-viz-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 2px;
+  height: 100%;
+  padding: 10px 12px;
+}
+.pattern-viz-grid > div {
+  border-radius: 2px;
 }
 
 /* ─── Admin page ────────────────────────────────────────────────── */
