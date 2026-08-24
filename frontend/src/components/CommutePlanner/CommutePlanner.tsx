@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useCommute } from '../../hooks/useCommute';
 import { useCommuteMatrix } from '../../hooks/useCommuteMatrix';
 import { useCommuteAvailabilitySeries } from '../../hooks/useCommuteAvailabilitySeries';
@@ -45,13 +44,13 @@ const SAMPLE_COMMUTES = [
   },
 ] as const;
 
-// Static placeholder data for the Patterns teaser cards — not real analytics.
-const PATTERN_BAR_HEIGHTS = [40, 65, 30, 80, 55, 90, 45, 70, 60, 35, 85, 50];
-const PATTERN_GRID_VALUES = [
-  0.2, 0.4, 0.9, 0.6, 0.3, 0.8, 0.5, 0.7, 0.9, 0.4, 0.2, 0.6,
-  0.5, 0.8, 0.3, 0.9, 0.6, 0.4, 0.7, 0.5, 0.2, 0.8, 0.6, 0.9,
-  0.3, 0.6, 0.5, 0.2, 0.8, 0.4, 0.7, 0.9, 0.5, 0.3, 0.6, 0.8,
-];
+// Patterns teaser is hidden until we have patterns to show; data + import kept for later.
+// const PATTERN_BAR_HEIGHTS = [40, 65, 30, 80, 55, 90, 45, 70, 60, 35, 85, 50];
+// const PATTERN_GRID_VALUES = [
+//   0.2, 0.4, 0.9, 0.6, 0.3, 0.8, 0.5, 0.7, 0.9, 0.4, 0.2, 0.6,
+//   0.5, 0.8, 0.3, 0.9, 0.6, 0.4, 0.7, 0.5, 0.2, 0.8, 0.6, 0.9,
+//   0.3, 0.6, 0.5, 0.2, 0.8, 0.4, 0.7, 0.9, 0.5, 0.3, 0.6, 0.8,
+// ];
 
 function neighborhoodLabel(
   stations: Station[],
@@ -323,7 +322,7 @@ export function CommutePlanner({ stations }: Props) {
       </div>
     </div>
 
-      {/* Patterns teaser */}
+      {/* Patterns teaser: hidden until we have patterns to show
       <div className="patterns-teaser">
         <div className="section-heading">
           <h2 className="section-heading-title">Explore Patterns</h2>
@@ -353,6 +352,7 @@ export function CommutePlanner({ stations }: Props) {
           </Link>
         </div>
       </div>
+      */}
     </>
     )}
 

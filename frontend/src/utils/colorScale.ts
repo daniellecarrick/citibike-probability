@@ -10,6 +10,7 @@ const SCALES: Record<string, [Stop, Stop, Stop]> = {
   vivid:  [[255,45,120],  [139,61,245],  [31,162,255]],
   soft:   [[255,95,162],  [160,107,255], [79,208,255]],
   jewel:  [[224,17,95],   [109,40,217],  [14,165,233]],
+  teal:   [[244,63,94],   [16,185,129],  [6,182,212]],
 };
 
 function lerp(a: number, b: number, t: number): number {

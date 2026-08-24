@@ -10,6 +10,9 @@ interface Props {
   currentSlot?: number;   // highlight marker
   width?: number;
   height?: number;
+  gradientId?: string;     // unique id when multiple charts render on one page
+  colors?: [string, string, string]; // gradient stops: [0%, 50%, 100%]
+  scaleName?: 'vivid' | 'soft' | 'jewel' | 'teal';
 }
 
 const PAD = { t: 10, r: 8, b: 20, l: 28 };
@@ -23,7 +26,12 @@ function slotToTime(slot: number): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-export function HourLineChart({ values, currentSlot, width = 340, height = 110 }: Props) {
+export function HourLineChart({
+  values, currentSlot, width = 340, height = 110,
+  gradientId = 'hlc-grad',
+  colors = ['#1fa2ff', '#8b3df5', '#ff2d78'],
+  scaleName = 'vivid',
+}: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverSlot, setHoverSlot] = useState<number | null>(null);
 
@@ -80,7 +88,7 @@ export function HourLineChart({ values, currentSlot, width = 340, height = 110 }
 
   // Y-axis labels
   const yLabels = [0, 50, 100];
-  const gradId = 'hlc-grad';
+  const gradId = gradientId;
 
   return (
     <svg
@@ -94,13 +102,13 @@ export function HourLineChart({ values, currentSlot, width = 340, height = 110 }
     >
       <defs>
         <linearGradient id={gradId} x1="0" y1={PAD.t} x2="0" y2={PAD.t + H} gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#1fa2ff" />
-          <stop offset="50%"  stopColor="#8b3df5" />
-          <stop offset="100%" stopColor="#ff2d78" />
+          <stop offset="0%"   stopColor={colors[0]} />
+          <stop offset="50%"  stopColor={colors[1]} />
+          <stop offset="100%" stopColor={colors[2]} />
         </linearGradient>
         <linearGradient id={`${gradId}-area`} x1="0" y1={PAD.t} x2="0" y2={PAD.t + H} gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#1fa2ff" stopOpacity="0.1" />
-          <stop offset="100%" stopColor="#ff2d78" stopOpacity="0" />
+          <stop offset="0%"   stopColor={colors[0]} stopOpacity="0.1" />
+          <stop offset="100%" stopColor={colors[2]} stopOpacity="0" />
         </linearGradient>
       </defs>
 
@@ -142,7 +150,7 @@ export function HourLineChart({ values, currentSlot, width = 340, height = 110 }
           <line x1={hoverX} x2={hoverX} y1={PAD.t} y2={PAD.t + H}
             stroke="#16181d" strokeWidth={1} strokeDasharray="3 2" opacity={0.25} />
           <circle cx={hoverX} cy={hoverY} r={4}
-            fill="white" stroke={probabilityToColor(hoverVal)} strokeWidth={2} />
+            fill="white" stroke={probabilityToColor(hoverVal, 1, scaleName)} strokeWidth={2} />
           <rect x={tipX} y={tipY} width={TIP_W} height={TIP_H} rx={4}
             fill="white" fillOpacity={0.97} stroke="#eceef2" strokeWidth={1} />
           <text x={tipX + 8} y={tipY + 13}
@@ -151,7 +159,7 @@ export function HourLineChart({ values, currentSlot, width = 340, height = 110 }
           </text>
           <text x={tipX + 8} y={tipY + 26}
             fontFamily="'IBM Plex Mono', monospace" fontSize={11} fontWeight="600"
-            fill={probabilityToColor(hoverVal)}>
+            fill={probabilityToColor(hoverVal, 1, scaleName)}>
             {Math.round(hoverVal * 100)}%
           </text>
         </g>

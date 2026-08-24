@@ -6,7 +6,7 @@ import logoSrc from '../../images/logo.png';
 const TABS = [
   { path: '/commute', label: 'Commute' },
   { path: '/map',     label: 'Map' },
-  { path: '/patterns', label: 'Patterns' },
+  // { path: '/patterns', label: 'Patterns' }, // hidden until we have patterns to show
 ];
 
 export function Header() {

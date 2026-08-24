@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { BarHistogram } from '../charts/BarHistogram';
 import { HourLineChart } from '../charts/HourLineChart';
+import { StackedAreaChart } from '../charts/StackedAreaChart';
 import { useStationDetail } from '../../hooks/useStationDetail';
 import { useStore, METRIC_TO_API } from '../../store';
 import { probabilityToColor } from '../../utils/colorScale';
+import { api } from '../../api/client';
 
 const SCALE_DOTS = [0, 0.5, 1].map(v => probabilityToColor(v));
 
@@ -20,7 +22,7 @@ export function StationDetailPanel() {
   const {
     selectedStationId,
     selectedTime, selectedDay, selectedMetric, focusStress, setFocusStress,
-    bulkCache,
+    bulkCache, setBulkCache,
   } = useStore();
 
   const cacheKey = `${selectedDay}_${METRIC_TO_API[selectedMetric]}`;
@@ -31,6 +33,85 @@ export function StationDetailPanel() {
       cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.probability ?? 0
     );
   }, [bulkCache, cacheKey, selectedStationId]);
+
+  // Dock availability is fetched independently of the map's selected metric,
+  // since a visitor viewing "bike" chances still wants to see dock chances.
+  const dockCacheKey = `${selectedDay}_docks`;
+  useEffect(() => {
+    if (bulkCache[dockCacheKey]) return;
+    api.map.bulk(selectedDay, 'docks')
+      .then(data => setBulkCache(dockCacheKey, data))
+      .catch(console.error);
+  }, [dockCacheKey, selectedDay, bulkCache, setBulkCache]);
+
+  const dockHourValues = useMemo<number[]>(() => {
+    const cached = bulkCache[dockCacheKey];
+    if (!cached || !selectedStationId) return Array(288).fill(0);
+    return Array.from({ length: 288 }, (_, slot) =>
+      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.probability ?? 0
+    );
+  }, [bulkCache, dockCacheKey, selectedStationId]);
+
+  // Classic + e-bike mean counts, stacked, for the "number of bikes" area chart.
+  const classicCacheKey = `${selectedDay}_classic`;
+  const ebikeCacheKey = `${selectedDay}_ebikes`;
+  useEffect(() => {
+    if (!bulkCache[classicCacheKey]) {
+      api.map.bulk(selectedDay, 'classic')
+        .then(data => setBulkCache(classicCacheKey, data))
+        .catch(console.error);
+    }
+    if (!bulkCache[ebikeCacheKey]) {
+      api.map.bulk(selectedDay, 'ebikes')
+        .then(data => setBulkCache(ebikeCacheKey, data))
+        .catch(console.error);
+    }
+  }, [classicCacheKey, ebikeCacheKey, selectedDay, bulkCache, setBulkCache]);
+
+  const classicCountValues = useMemo<number[]>(() => {
+    const cached = bulkCache[classicCacheKey];
+    if (!cached || !selectedStationId) return Array(288).fill(0);
+    return Array.from({ length: 288 }, (_, slot) =>
+      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.mean_inventory ?? 0
+    );
+  }, [bulkCache, classicCacheKey, selectedStationId]);
+
+  const ebikeCountValues = useMemo<number[]>(() => {
+    const cached = bulkCache[ebikeCacheKey];
+    if (!cached || !selectedStationId) return Array(288).fill(0);
+    return Array.from({ length: 288 }, (_, slot) =>
+      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.mean_inventory ?? 0
+    );
+  }, [bulkCache, ebikeCacheKey, selectedStationId]);
+
+  // Dock counts reuse the bulk data already fetched for the dock probability chart above.
+  const dockCountValues = useMemo<number[]>(() => {
+    const cached = bulkCache[dockCacheKey];
+    if (!cached || !selectedStationId) return Array(288).fill(0);
+    return Array.from({ length: 288 }, (_, slot) =>
+      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.mean_inventory ?? 0
+    );
+  }, [bulkCache, dockCacheKey, selectedStationId]);
+
+  // Classic/e-bike/dock mean counts don't sum to capacity (each is averaged
+  // independently), which reads as a bug in a stacked chart. Normalize each
+  // slot to a share of that slot's total so the stack always sums to 100%.
+  const [classicSharePct, ebikeSharePct, dockSharePct] = useMemo<[number[], number[], number[]]>(() => {
+    const classic: number[] = [];
+    const ebike: number[] = [];
+    const dock: number[] = [];
+    for (let slot = 0; slot < 288; slot++) {
+      const c = classicCountValues[slot] ?? 0;
+      const e = ebikeCountValues[slot] ?? 0;
+      const d = dockCountValues[slot] ?? 0;
+      const total = c + e + d;
+      classic.push(total > 0 ? (c / total) * 100 : 0);
+      ebike.push(total > 0 ? (e / total) * 100 : 0);
+      dock.push(total > 0 ? (d / total) * 100 : 0);
+    }
+    return [classic, ebike, dock];
+  }, [classicCountValues, ebikeCountValues, dockCountValues]);
+
   const { detail, loading } = useStationDetail();
   const stressRef = useRef<HTMLDivElement>(null);
 
@@ -122,7 +203,7 @@ export function StationDetailPanel() {
 
       {/* 2. Probability by hour */}
       <div className="detail-section">
-        <div className="detail-section-title">Probability of finding a bike</div>
+        <div className="detail-section-title">Probability of an available bike</div>
         <HourLineChart
           values={hourValues}
           currentSlot={Math.floor(selectedTime / 5)}
@@ -130,11 +211,37 @@ export function StationDetailPanel() {
         />
       </div>
 
-      {/* 3. Historical availability histogram */}
+      {/* 3. Probability of finding a dock by hour */}
       <div className="detail-section">
+        <div className="detail-section-title">Probability of an available dock</div>
+        <HourLineChart
+          values={dockHourValues}
+          currentSlot={Math.floor(selectedTime / 5)}
+          width={340}
+          gradientId="hlc-grad-dock"
+        />
+      </div>
+
+      {/* 4. Share of bikes vs. docks by hour, stacked by type */}
+      <div className="detail-section">
+        <div className="detail-section-title">Bikes &amp; docks by hour</div>
+        <StackedAreaChart
+          layers={[
+            { label: 'Classic', color: '#1fa2ff', values: classicSharePct },
+            { label: 'E-bike', color: '#2d5aff', values: ebikeSharePct },
+            { label: 'Docks', color: '#aaaaaa', values: dockSharePct },
+          ]}
+          currentSlot={Math.floor(selectedTime / 5)}
+          width={340}
+          percentMode
+        />
+      </div>
+
+      {/* 5. Historical availability histogram */}
+      {/* <div className="detail-section">
         <div className="detail-section-title">Historical availability</div>
         <BarHistogram histogram={activeDist.histogram} />
-      </div>
+      </div> */}
     </div>
   );
 }
