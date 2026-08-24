@@ -3,9 +3,10 @@
  * set the global day/time (driving the forecast-card + RecommendationList
  * below); the cell nearest the current day/time is outlined.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useStore } from '../../store';
 import { probabilityToColor } from '../../utils/colorScale';
+import { DAYS_FULL } from '../../utils/time';
 import type { CommuteMatrixResponse } from '../../types';
 
 interface Props {
@@ -26,9 +27,58 @@ function formatTime(minutes: number): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
+function fmtPct(p: number | null): string {
+  return p !== null ? `${Math.round(p * 100)}%` : '—';
+}
+
+type Period = 'morning' | 'afternoon' | 'evening' | 'night';
+const PERIOD_PLURAL: Record<Period, string> = {
+  morning: 'mornings', afternoon: 'afternoons', evening: 'evenings', night: 'nights',
+};
+
+function periodOf(minute: number): Period {
+  if (minute >= 300 && minute < 660) return 'morning';   // 5a–11a
+  if (minute >= 660 && minute < 960) return 'afternoon';  // 11a–4p
+  if (minute >= 960 && minute < 1260) return 'evening';   // 4p–9p
+  return 'night';                                          // 9p–5a
+}
+
+/** "Monday mornings are the worst, but Thursday evenings are clear" —
+ * derived from the day×time success-probability grid, not hardcoded. */
+function contextSentence(matrix: CommuteMatrixResponse): string | null {
+  const agg = new Map<string, { sum: number; count: number }>();
+
+  for (const day of matrix.days) {
+    for (const bucket of day.buckets) {
+      if (bucket.success_probability === null) continue;
+      const key = `${day.day_of_week}|${periodOf(bucket.departure_minute)}`;
+      const entry = agg.get(key) ?? { sum: 0, count: 0 };
+      entry.sum += bucket.success_probability;
+      entry.count += 1;
+      agg.set(key, entry);
+    }
+  }
+  if (agg.size < 2) return null;
+
+  let worstKey = '', bestKey = '';
+  let worstAvg = Infinity, bestAvg = -Infinity;
+  for (const [key, { sum, count }] of agg) {
+    const avg = sum / count;
+    if (avg < worstAvg) { worstAvg = avg; worstKey = key; }
+    if (avg > bestAvg) { bestAvg = avg; bestKey = key; }
+  }
+  if (worstKey === bestKey) return null;
+
+  const [worstDay, worstPeriod] = worstKey.split('|') as [string, Period];
+  const [bestDay, bestPeriod] = bestKey.split('|') as [string, Period];
+
+  return `${DAYS_FULL[Number(worstDay)]} ${PERIOD_PLURAL[worstPeriod]} are the worst, but ${DAYS_FULL[Number(bestDay)]} ${PERIOD_PLURAL[bestPeriod]} are clear.`;
+}
+
 export function CommuteMatrix({ matrix }: Props) {
   const { selectedDay, selectedTime, setDay, setTime } = useStore();
   const [hover, setHover] = useState<{ day: number; bucketIdx: number } | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
 
   const bucketsPerDay = matrix.days[0]?.buckets.length ?? 48;
   const cellW = GRID_W / bucketsPerDay;
@@ -42,8 +92,12 @@ export function CommuteMatrix({ matrix }: Props) {
     ? matrix.days[hover.day]?.buckets[hover.bucketIdx]
     : null;
 
+  const context = useMemo(() => contextSentence(matrix), [matrix]);
+
   return (
     <div className="commute-matrix">
+      <div className="card-title">Probability of a successful commute by hour and day</div>
+      {context && <div className="matrix-context">{context}</div>}
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         {matrix.days.map((day, rowIdx) => (
           <g key={day.day_of_week}>
@@ -67,8 +121,9 @@ export function CommuteMatrix({ matrix }: Props) {
                   stroke={isSelected ? '#16181d' : 'none'}
                   strokeWidth={isSelected ? 2 : 0}
                   style={{ cursor: 'pointer' }}
-                  onMouseEnter={() => setHover({ day: rowIdx, bucketIdx: colIdx })}
-                  onMouseLeave={() => setHover(null)}
+                  onMouseEnter={(e) => { setHover({ day: rowIdx, bucketIdx: colIdx }); setHoverPos({ x: e.clientX, y: e.clientY }); }}
+                  onMouseMove={(e) => setHoverPos({ x: e.clientX, y: e.clientY })}
+                  onMouseLeave={() => { setHover(null); setHoverPos(null); }}
                   onClick={() => { setDay(day.day_of_week); setTime(bucket.departure_minute); }}
                 />
               );
@@ -88,6 +143,29 @@ export function CommuteMatrix({ matrix }: Props) {
           );
         })}
       </svg>
+
+      {hoverBucket && hoverPos && (
+        <div
+          className="matrix-hover-tooltip"
+          style={{ left: hoverPos.x + 14, top: hoverPos.y - 64 }}
+        >
+          <div className="matrix-tooltip-title">
+            {DAY_LABELS[matrix.days[hover!.day].day_of_week]} {formatTime(hoverBucket.departure_minute)}
+          </div>
+          <div className="matrix-tooltip-row">
+            <span>Success</span>
+            <strong>{fmtPct(hoverBucket.success_probability)}</strong>
+          </div>
+          <div className="matrix-tooltip-row">
+            <span>Bike avail.</span>
+            <strong>{fmtPct(hoverBucket.bike_probability)}</strong>
+          </div>
+          <div className="matrix-tooltip-row">
+            <span>Dock avail.</span>
+            <strong>{fmtPct(hoverBucket.dock_probability)}</strong>
+          </div>
+        </div>
+      )}
 
       <div className="commute-matrix-footer">
         <div className="commute-matrix-hint">

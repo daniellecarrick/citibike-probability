@@ -1,5 +1,4 @@
 import { useStore } from '../../store';
-import { DAYS_FULL, formatTime } from '../../utils/time';
 import type { Station } from '../../types';
 
 interface Props {
@@ -7,7 +6,7 @@ interface Props {
 }
 
 export function CommuteRouteBar({ stations }: Props) {
-  const { commute, setCommute, selectedDay, selectedTime } = useStore();
+  const { commute, setCommute } = useStore();
   if (!commute) return null;
 
   const origin = stations.find(s => s.station_id === commute.originId);
@@ -22,7 +21,6 @@ export function CommuteRouteBar({ stations }: Props) {
         <span className="route-bar-dot route-bar-dot-dest" />
         <span className="route-bar-station">{dest?.station_name ?? 'Destination'}</span>
       </div>
-      <div className="route-bar-meta">{DAYS_FULL[selectedDay]} · {formatTime(selectedTime)}</div>
       <button className="route-bar-edit" onClick={() => setCommute(null)}>Edit</button>
     </div>
   );

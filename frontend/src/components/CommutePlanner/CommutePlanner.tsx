@@ -9,12 +9,24 @@ import { filterStations } from '../../utils/stationSearch';
 import { DAYS_FULL, formatTime } from '../../utils/time';
 import { AvailabilityChart } from './AvailabilityChart';
 import { CommuteMatrix } from './CommuteMatrix';
-import { RecommendationList } from './RecommendationList';
+import { TimeStepper } from '../Controls/TimeStepper';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 import type { SavedCommute } from '../../hooks/useSavedCommutes';
-import type { Station } from '../../types';
+import type { DayOfWeek, Station } from '../../types';
 
 type SavedItem = SavedCommute & { kind: 'starred' | 'recent' };
+
+const FORECAST_DAYS: { letter: string; full: string; value: DayOfWeek }[] = [
+  { letter: 'S', full: 'Sunday',    value: 6 },
+  { letter: 'M', full: 'Monday',    value: 0 },
+  { letter: 'T', full: 'Tuesday',   value: 1 },
+  { letter: 'W', full: 'Wednesday', value: 2 },
+  { letter: 'T', full: 'Thursday',  value: 3 },
+  { letter: 'F', full: 'Friday',    value: 4 },
+  { letter: 'S', full: 'Saturday',  value: 5 },
+];
+
+const FORECAST_TIME_STEP = 15;
 
 const SAMPLE_COMMUTES = [
   {
@@ -150,10 +162,10 @@ interface Props {
 
 export function CommutePlanner({ stations }: Props) {
   const { commute, setCommute, selectedDay, selectedTime, setDay, setTime, setMapMode } = useStore();
-  const { result, recommendations, loading } = useCommute();
+  const { result, loading } = useCommute();
   const { matrix } = useCommuteMatrix();
   const { series } = useCommuteAvailabilitySeries();
-  const { recent, starred, addRecent, toggleStar, isStarred, removeRecent } = useSavedCommutes();
+  const { recent, starred, addRecent, isStarred } = useSavedCommutes();
 
   const [originId, setOriginId] = useState(commute?.originId ?? '');
   const [destId,   setDestId]   = useState(commute?.destId   ?? '');
@@ -176,6 +188,9 @@ export function CommutePlanner({ stations }: Props) {
     .filter(c => !isStarred(c.originId, c.destId))
     .map(c => ({ ...c, kind: 'recent' as const }));
   const allSaved: SavedItem[] = [...starredItems, ...recentItems].slice(0, 5);
+  // Samples fill any remaining slots up to 5 total — they disappear once
+  // saved items alone fill the row.
+  const sampleSlots = SAMPLE_COMMUTES.slice(0, Math.max(0, 5 - allSaved.length));
 
   function updateCardScrollState() {
     const el = cardsScrollRef.current;
@@ -187,10 +202,6 @@ export function CommutePlanner({ stations }: Props) {
   useEffect(() => {
     updateCardScrollState();
   }, [allSaved.length]);
-
-  function scrollCards(dir: 'left' | 'right') {
-    cardsScrollRef.current?.scrollBy({ left: dir === 'left' ? -240 : 240, behavior: 'smooth' });
-  }
 
   function makeSaved() {
     const o = stations.find(s => s.station_id === originId);
@@ -210,12 +221,6 @@ export function CommutePlanner({ stations }: Props) {
     setOriginId(c.originId);
     setDestId(c.destId);
     setBikeType(c.bikeType);
-  }
-
-  function handleRemoveSaved(c: SavedItem, e: React.MouseEvent) {
-    e.stopPropagation();
-    if (c.kind === 'starred') toggleStar(c);
-    else removeRecent(c.originId, c.destId);
   }
 
   function handleSwap() {
@@ -281,53 +286,40 @@ export function CommutePlanner({ stations }: Props) {
 
       {/* Quick-access: starred, then recent, then sample commutes */}
       <div className="commute-cards-wrap">
-        <button
-          className="commute-cards-arrow"
-          onClick={() => scrollCards('left')}
-          disabled={!canScrollLeft}
-          aria-label="Scroll left"
-        >
-          ‹
-        </button>
-        <div className="commute-cards-row" ref={cardsScrollRef} onScroll={updateCardScrollState}>
-          {allSaved.map((c, i) => (
-            <div key={i} className="sample-commute-card saved-quick-card">
-              <span className={`commute-card-badge ${c.kind === 'starred' ? 'badge-starred' : 'badge-recent'}`}>
-                {c.kind === 'starred' ? 'Starred' : 'Recent'}
-              </span>
-              <button className="saved-quick-load" onClick={() => handleLoadSaved(c)}>
-                <div className="sample-commute-label">
-                  {neighborhoodLabel(stations, c.originId, c.destId, c.originName, c.destName)}
-                </div>
+        <div className="commute-cards-track">
+          <div className="commute-cards-row" ref={cardsScrollRef} onScroll={updateCardScrollState}>
+            {allSaved.map((c, i) => (
+              <div key={i} className="sample-commute-card saved-quick-card">
+                <span className={`commute-card-badge ${c.kind === 'starred' ? 'badge-starred' : 'badge-recent'}`}>
+                  {c.kind === 'starred' ? 'Starred' : 'Recent'}
+                </span>
+                <button className="saved-quick-load" onClick={() => handleLoadSaved(c)}>
+                  <div className="sample-commute-label">
+                    {neighborhoodLabel(stations, c.originId, c.destId, c.originName, c.destName)}
+                  </div>
+                  <div className="sample-commute-route">
+                    {c.originName} <span className="sample-commute-arrow">→</span> {c.destName}
+                  </div>
+                </button>
+              </div>
+            ))}
+            {sampleSlots.map(sample => (
+              <button
+                key={sample.label}
+                className="sample-commute-card"
+                onClick={() => handleSample(sample)}
+              >
+                <span className="commute-card-badge">Sample</span>
+                <div className="sample-commute-label">{sample.label}</div>
                 <div className="sample-commute-route">
-                  {c.originName} <span className="sample-commute-arrow">→</span> {c.destName}
+                  {sample.originName} <span className="sample-commute-arrow">→</span> {sample.destName}
                 </div>
               </button>
-              <button className="saved-quick-remove" onClick={e => handleRemoveSaved(c, e)} aria-label="Remove">×</button>
-            </div>
-          ))}
-          {SAMPLE_COMMUTES.map(sample => (
-            <button
-              key={sample.label}
-              className="sample-commute-card"
-              onClick={() => handleSample(sample)}
-            >
-              <span className="commute-card-badge">Sample</span>
-              <div className="sample-commute-label">{sample.label}</div>
-              <div className="sample-commute-route">
-                {sample.originName} <span className="sample-commute-arrow">→</span> {sample.destName}
-              </div>
-            </button>
-          ))}
+            ))}
+          </div>
+          {canScrollLeft && <div className="commute-cards-fade commute-cards-fade-left" />}
+          {canScrollRight && <div className="commute-cards-fade commute-cards-fade-right" />}
         </div>
-        <button
-          className="commute-cards-arrow"
-          onClick={() => scrollCards('right')}
-          disabled={!canScrollRight}
-          aria-label="Scroll right"
-        >
-          ›
-        </button>
       </div>
     </div>
 
@@ -372,10 +364,27 @@ export function CommutePlanner({ stations }: Props) {
           {hasCommute && result && (
             <div className="card forecast-card">
               <div className="forecast-header">
-                <div className="forecast-eyebrow">
-                  {DAYS_FULL[selectedDay]} · {formatTime(selectedTime)}
+                <div className="card-title">Your commute forecast</div>
+                <div className="forecast-lede">
+                  If you leave <strong>{DAYS_FULL[selectedDay]}</strong> at <strong>{formatTime(selectedTime)}</strong>, your
+                  chance of a successful commute is{' '}
+                  <strong style={{ color: pColor }}>{p !== null ? `${Math.round(p * 100)}%` : '—'}</strong>.
                 </div>
-                <div className="forecast-title">Your commute forecast</div>
+                <div className="forecast-picker-row">
+                  <div className="day-pills-track">
+                    {FORECAST_DAYS.map(d => (
+                      <button
+                        key={d.value}
+                        className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
+                        title={d.full}
+                        onClick={() => setDay(d.value)}
+                      >
+                        {d.letter}
+                      </button>
+                    ))}
+                  </div>
+                  <TimeStepper minutes={selectedTime} onChange={setTime} step={FORECAST_TIME_STEP} />
+                </div>
               </div>
 
               <div className="forecast-hero">
@@ -428,10 +437,10 @@ export function CommutePlanner({ stations }: Props) {
       {/* Absolute bike/dock availability across the day */}
       {series && <AvailabilityChart series={series} />}
 
-      {/* Recommendations */}
+      {/* Recommendations
       {hasCommute && result && recommendations.length > 0 && (
         <RecommendationList recommendations={recommendations} currentTime={selectedTime} />
-      )}
+      )} */}
     </div>
   );
 }

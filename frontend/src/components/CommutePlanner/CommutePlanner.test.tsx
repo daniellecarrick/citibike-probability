@@ -107,15 +107,33 @@ describe('saved commutes', () => {
     expect(screen.getByRole('button', { name: /get forecast/i })).toBeEnabled();
   });
 
-  it('clicking the × button calls removeRecent and does NOT load the commute', () => {
-    const mockRemove = vi.fn();
+  it('does not render a remove button on saved cards', () => {
     const c = { originId: 'S1', originName: 'Park Ave', destId: 'S2', destName: 'Grand St', bikeType: 'any' as const, savedAt: 1 };
-    mockUseSavedCommutes.mockReturnValue(makeSavedHook({ recent: [c], removeRecent: mockRemove }));
+    mockUseSavedCommutes.mockReturnValue(makeSavedHook({ recent: [c] }));
     renderPlanner();
-    const removeBtn = screen.getByRole('button', { name: /remove/i });
-    fireEvent.click(removeBtn);
-    expect(mockRemove).toHaveBeenCalledWith('S1', 'S2');
-    expect(useStore.getState().commute).toBeNull();
+    expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('commute cards row cap', () => {
+  function makeRecent(n: number) {
+    return Array.from({ length: n }, (_, i) => ({
+      originId: `S${i}`, originName: `Origin ${i}`, destId: `S${i}`, destName: `Dest ${i}`,
+      bikeType: 'any' as const, savedAt: i,
+    }));
+  }
+
+  it('shows both sample cards when there are no saved commutes', () => {
+    renderPlanner();
+    expect(screen.getByRole('button', { name: /Park Slope to Midtown East/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Upper East Side to Financial District/i })).toBeInTheDocument();
+  });
+
+  it('hides the sample cards once there are 5 or more saved commutes', () => {
+    mockUseSavedCommutes.mockReturnValue(makeSavedHook({ recent: makeRecent(5) }));
+    renderPlanner();
+    expect(screen.queryByText('Sample')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Park Slope to Midtown East/i })).not.toBeInTheDocument();
   });
 });
 

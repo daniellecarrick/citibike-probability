@@ -63,15 +63,39 @@ def init_db() -> None:
                 bikes_avail    INTEGER NOT NULL,
                 bikes_low      INTEGER NOT NULL,
                 bikes_sum      REAL NOT NULL,
+                bikes_h0       INTEGER NOT NULL DEFAULT 0,
+                bikes_h1_2     INTEGER NOT NULL DEFAULT 0,
+                bikes_h3_5     INTEGER NOT NULL DEFAULT 0,
+                bikes_h6_10    INTEGER NOT NULL DEFAULT 0,
+                bikes_h11_15   INTEGER NOT NULL DEFAULT 0,
+                bikes_h16p     INTEGER NOT NULL DEFAULT 0,
                 classic_avail  INTEGER NOT NULL,
                 classic_low    INTEGER NOT NULL,
                 classic_sum    REAL NOT NULL,
+                classic_h0     INTEGER NOT NULL DEFAULT 0,
+                classic_h1_2   INTEGER NOT NULL DEFAULT 0,
+                classic_h3_5   INTEGER NOT NULL DEFAULT 0,
+                classic_h6_10  INTEGER NOT NULL DEFAULT 0,
+                classic_h11_15 INTEGER NOT NULL DEFAULT 0,
+                classic_h16p   INTEGER NOT NULL DEFAULT 0,
                 ebikes_avail   INTEGER NOT NULL,
                 ebikes_low     INTEGER NOT NULL,
                 ebikes_sum     REAL NOT NULL,
+                ebikes_h0      INTEGER NOT NULL DEFAULT 0,
+                ebikes_h1_2    INTEGER NOT NULL DEFAULT 0,
+                ebikes_h3_5    INTEGER NOT NULL DEFAULT 0,
+                ebikes_h6_10   INTEGER NOT NULL DEFAULT 0,
+                ebikes_h11_15  INTEGER NOT NULL DEFAULT 0,
+                ebikes_h16p    INTEGER NOT NULL DEFAULT 0,
                 docks_avail    INTEGER NOT NULL,
                 docks_low      INTEGER NOT NULL,
                 docks_sum      REAL NOT NULL,
+                docks_h0       INTEGER NOT NULL DEFAULT 0,
+                docks_h1_2     INTEGER NOT NULL DEFAULT 0,
+                docks_h3_5     INTEGER NOT NULL DEFAULT 0,
+                docks_h6_10    INTEGER NOT NULL DEFAULT 0,
+                docks_h11_15   INTEGER NOT NULL DEFAULT 0,
+                docks_h16p     INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (station_id, day_of_week, raw_slot)
             );
 
@@ -99,5 +123,17 @@ def init_db() -> None:
     if "neighborhood" not in station_cols:
         conn.execute("ALTER TABLE stations ADD COLUMN neighborhood TEXT")
         conn.commit()
+
+    # Migration: add per-metric histogram bucket columns to station_slot_rollup
+    # for existing databases that predate this change. Zero-filled — stale
+    # until the next hourly rebuild_rollup() pass repopulates every row anyway.
+    rollup_cols = {row[1] for row in conn.execute("PRAGMA table_info(station_slot_rollup)")}
+    bucket_suffixes = ["h0", "h1_2", "h3_5", "h6_10", "h11_15", "h16p"]
+    for metric in ("bikes", "classic", "ebikes", "docks"):
+        for suffix in bucket_suffixes:
+            col = f"{metric}_{suffix}"
+            if col not in rollup_cols:
+                conn.execute(f"ALTER TABLE station_slot_rollup ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0")
+                conn.commit()
 
     conn.close()

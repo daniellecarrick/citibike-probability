@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useStore, METRIC_TO_API } from '../../store';
+import { useStore, METRIC_LABEL, METRIC_TO_API } from '../../store';
 
 interface HoveredStation {
   id: string;
@@ -49,10 +49,12 @@ export function StationHoverTooltip({ station, tooltipRef }: Props) {
     ' L 287,56 Z';
 
   const currentX = Math.floor(selectedTime / 5);
+  const metricPhrase = selectedMetric === 'fullness' ? 'Fullness' : `${METRIC_LABEL[selectedMetric]} availability`;
 
   return (
     <div ref={tooltipRef} className="station-hover-tooltip">
       <div className="hover-tooltip-name">{station.name}</div>
+      <div className="hover-tooltip-metric">{metricPhrase}</div>
       <svg
         className="hover-tooltip-chart"
         viewBox="0 0 287 56"

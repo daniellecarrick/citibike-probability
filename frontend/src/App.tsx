@@ -5,6 +5,7 @@ import { AdminPage } from './components/Admin/AdminPage';
 import { CommutePlanner } from './components/CommutePlanner/CommutePlanner';
 import { CommuteRouteBar } from './components/CommutePlanner/CommuteRouteBar';
 import { Header } from './components/Layout/Header';
+import { MapControlsBar } from './components/Map/MapControlsBar';
 import { MapSidebar } from './components/Map/MapSidebar';
 import { MobileBottomSheet } from './components/Mobile/MobileBottomSheet';
 import { MobileFilterMenu } from './components/Mobile/MobileFilterMenu';
@@ -22,12 +23,15 @@ function MapView({ stations }: { stations: Station[] }) {
   useMapData(stations);
 
   return (
-    <div className="app-body">
-      <MapSidebar />
+    <div className="map-page">
+      <MapControlsBar />
+      <div className="app-body">
+        <MapSidebar />
 
-      {/* Map */}
-      <div className="map-region">
-        <StationMap data={currentMapData} />
+        {/* Map */}
+        <div className="map-region">
+          <StationMap data={currentMapData} />
+        </div>
       </div>
     </div>
   );

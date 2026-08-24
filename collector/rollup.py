@@ -29,6 +29,43 @@ DEFAULT_LOOKBACK_DAYS = 90
 # Must match analytics/stress.py DEFAULT_THRESHOLDS
 LOW_THRESHOLDS = {"bikes": 3, "classic": 2, "ebikes": 2, "docks": 3}
 
+METRIC_COLUMN = {
+    "bikes": "available_bikes",
+    "classic": "available_classic_bikes",
+    "ebikes": "available_ebikes",
+    "docks": "available_docks",
+}
+
+# Bucket boundaries must match backend/analytics/stability.py's
+# buckets = [0, 1, 3, 6, 11, 16] / labels = ["0","1–2","3–5","6–10","11–15","16+"].
+HISTOGRAM_BUCKETS = [
+    ("h0", "= 0"),
+    ("h1_2", "BETWEEN 1 AND 2"),
+    ("h3_5", "BETWEEN 3 AND 5"),
+    ("h6_10", "BETWEEN 6 AND 10"),
+    ("h11_15", "BETWEEN 11 AND 15"),
+    ("h16p", ">= 16"),
+]
+
+_metric_select_lines = []
+_insert_columns = ["station_id", "day_of_week", "raw_slot", "total"]
+for _metric, _col in METRIC_COLUMN.items():
+    _metric_select_lines.append(
+        f"SUM(CASE WHEN {_col} >= 1 THEN 1 ELSE 0 END) AS {_metric}_avail"
+    )
+    _metric_select_lines.append(
+        f"SUM(CASE WHEN {_col} < {LOW_THRESHOLDS[_metric]} THEN 1 ELSE 0 END) AS {_metric}_low"
+    )
+    _metric_select_lines.append(
+        f"SUM(CAST({_col} AS REAL)) AS {_metric}_sum"
+    )
+    _insert_columns += [f"{_metric}_avail", f"{_metric}_low", f"{_metric}_sum"]
+    for _suffix, _cond in HISTOGRAM_BUCKETS:
+        _metric_select_lines.append(
+            f"SUM(CASE WHEN {_col} {_cond} THEN 1 ELSE 0 END) AS {_metric}_{_suffix}"
+        )
+        _insert_columns.append(f"{_metric}_{_suffix}")
+
 REBUILD_QUERY = f"""
     SELECT
         station_id,
@@ -36,31 +73,15 @@ REBUILD_QUERY = f"""
             AS day_of_week,
         CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
         COUNT(*) AS total,
-        SUM(CASE WHEN available_bikes         >= 1 THEN 1 ELSE 0 END) AS bikes_avail,
-        SUM(CASE WHEN available_bikes         < {LOW_THRESHOLDS["bikes"]}   THEN 1 ELSE 0 END) AS bikes_low,
-        SUM(CAST(available_bikes AS REAL))                                   AS bikes_sum,
-        SUM(CASE WHEN available_classic_bikes >= 1 THEN 1 ELSE 0 END) AS classic_avail,
-        SUM(CASE WHEN available_classic_bikes < {LOW_THRESHOLDS["classic"]} THEN 1 ELSE 0 END) AS classic_low,
-        SUM(CAST(available_classic_bikes AS REAL))                          AS classic_sum,
-        SUM(CASE WHEN available_ebikes        >= 1 THEN 1 ELSE 0 END) AS ebikes_avail,
-        SUM(CASE WHEN available_ebikes        < {LOW_THRESHOLDS["ebikes"]}  THEN 1 ELSE 0 END) AS ebikes_low,
-        SUM(CAST(available_ebikes AS REAL))                                  AS ebikes_sum,
-        SUM(CASE WHEN available_docks         >= 1 THEN 1 ELSE 0 END) AS docks_avail,
-        SUM(CASE WHEN available_docks         < {LOW_THRESHOLDS["docks"]}   THEN 1 ELSE 0 END) AS docks_low,
-        SUM(CAST(available_docks AS REAL))                                   AS docks_sum
+        {','.join(_metric_select_lines)}
     FROM station_snapshots
     WHERE timestamp >= ?
     GROUP BY station_id, day_of_week, raw_slot
 """
 
-INSERT_ROW = """
-    INSERT INTO station_slot_rollup (
-        station_id, day_of_week, raw_slot, total,
-        bikes_avail, bikes_low, bikes_sum,
-        classic_avail, classic_low, classic_sum,
-        ebikes_avail, ebikes_low, ebikes_sum,
-        docks_avail, docks_low, docks_sum
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+INSERT_ROW = f"""
+    INSERT INTO station_slot_rollup ({','.join(_insert_columns)})
+    VALUES ({','.join('?' * len(_insert_columns))})
 """
 
 

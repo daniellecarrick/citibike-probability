@@ -1,21 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef } from 'react';
 import { BarHistogram } from '../charts/BarHistogram';
 import { HourLineChart } from '../charts/HourLineChart';
 import { useStationDetail } from '../../hooks/useStationDetail';
 import { useStore, METRIC_TO_API } from '../../store';
-import { probabilityToColor, fmtPct } from '../../utils/colorScale';
+import { probabilityToColor } from '../../utils/colorScale';
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const SCALE_DOTS = [0, 0.5, 1].map(v => probabilityToColor(v));
-
-function formatTime(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  const ampm = h < 12 ? 'AM' : 'PM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
-}
 
 function statusLabel(prob: number | null): { label: string; color: string } {
   const color = probabilityToColor(prob);
@@ -27,9 +17,8 @@ function statusLabel(prob: number | null): { label: string; color: string } {
 }
 
 export function StationDetailPanel() {
-  const navigate = useNavigate();
   const {
-    selectedStationId, selectStation, commute, setCommute,
+    selectedStationId,
     selectedTime, selectedDay, selectedMetric, focusStress, setFocusStress,
     bulkCache,
   } = useStore();
@@ -44,9 +33,6 @@ export function StationDetailPanel() {
   }, [bulkCache, cacheKey, selectedStationId]);
   const { detail, loading } = useStationDetail();
   const stressRef = useRef<HTMLDivElement>(null);
-  const [panelMode, setPanelMode] = useState<'pickup' | 'dropoff'>('pickup');
-
-  useEffect(() => { setPanelMode('pickup'); }, [selectedStationId]);
 
   useEffect(() => {
     if (focusStress && stressRef.current) {
@@ -66,7 +52,7 @@ export function StationDetailPanel() {
         </div>
         <div className="station-empty-headline">Select a station</div>
         <div className="station-empty-body">
-          Click any station on the map to see its forecast, reliability, hourly pattern, and stress profile.
+          Click any station on the map to see its details.
         </div>
       </div>
     );
@@ -76,29 +62,14 @@ export function StationDetailPanel() {
   if (!detail) return <div className="loading">Station not found.</div>;
 
   const bikeProb   = detail.probabilities.bikes.probability;
-  const dockProb   = detail.probabilities.docks.probability;
   const bikeStress = detail.stress_scores.bikes.stress_score;
 
-  const isDropoff  = panelMode === 'dropoff';
-  const activeProb = isDropoff ? dockProb : bikeProb;
+  const activeProb = bikeProb;
   const status     = statusLabel(activeProb);
 
   const stressHigh  = bikeStress !== null && bikeStress >= 42;
-  const stressColor = probabilityToColor(bikeStress !== null ? 1 - bikeStress / 100 : null);
-  const dockColor   = probabilityToColor(dockProb);
 
-  const activeDist = isDropoff ? detail.distributions.docks : detail.distributions.bikes;
-  function handleSetOrigin() {
-    setPanelMode('pickup');
-    setCommute({ originId: selectedStationId!, destId: commute?.destId ?? '', bikeType: commute?.bikeType ?? 'any' });
-    navigate('/commute');
-  }
-
-  function handleSetDest() {
-    setPanelMode('dropoff');
-    setCommute({ originId: commute?.originId ?? '', destId: selectedStationId!, bikeType: commute?.bikeType ?? 'any' });
-    navigate('/commute');
-  }
+  const activeDist = detail.distributions.bikes;
 
   return (
     <div style={{ animation: 'slideIn .32s cubic-bezier(.22,1,.36,1)' }}>
@@ -122,70 +93,36 @@ export function StationDetailPanel() {
           </div>
         </div>
 
-        <div className="station-time-line">
+        {/* <div className="station-time-line">
           {formatTime(selectedTime)} · {DAY_NAMES[selectedDay]}
-          {isDropoff && <span className="station-mode-tag"> · docking</span>}
-        </div>
-
-        <div className="station-actions">
-          <button className={isDropoff ? 'btn-dest' : 'btn-origin'} onClick={handleSetOrigin}>
-            Set as origin
-          </button>
-          <button className={isDropoff ? 'btn-origin' : 'btn-dest'} onClick={handleSetDest}>
-            Set as destination
-          </button>
-        </div>
+        </div> */}
       </div>
 
-      {/* 1. Forecast / stress section — adapts to pickup vs dropoff */}
+      {/* 1. Forecast / stress section */}
       <div className="detail-section" ref={stressRef}>
-        <div className="detail-section-title">
-          {isDropoff ? 'Chance of docking' : 'Chance of a bike'}
-        </div>
         <div
           className={`stress-section${focusStress ? ' focus-stress' : ''}`}
-          style={{
-            background: !isDropoff && stressHigh ? `${stressColor}12` : '#fafbfc',
-            borderColor: !isDropoff && stressHigh ? stressColor : 'transparent',
-            color: isDropoff ? dockColor : stressColor,
-          }}
         >
           <div className="stress-headline">
-            {isDropoff
-              ? (dockProb !== null
-                  ? `${Math.round(dockProb * 100)}% chance of a free dock`
-                  : '—')
-              : (bikeProb !== null
-                  ? `${Math.round(bikeProb * 100)}% chance of a bike`
-                  : '—')
-            }
-            {!isDropoff && bikeProb !== null && bikeProb > 0.5 &&
+            {bikeProb !== null ? `${Math.round(bikeProb * 100)}% chance of a bike` : '—'}
+            {bikeProb !== null && bikeProb > 0.5 &&
              detail.distributions.bikes.median !== null && detail.distributions.bikes.median < 3
               ? ` — but typically only ${detail.distributions.bikes.median.toFixed(1)} on hand`
               : ''}
           </div>
-          <div className="pct-band-labels">
-            <span>Quietest</span>
-            <span>{isDropoff ? 'Typical docks' : 'Typical now'}</span>
-            <span>Fullest</span>
-          </div>
           <div className="stress-body" style={{ marginTop: 8, color: '#6c727e' }}>
-            {isDropoff
-              ? (dockProb !== null && dockProb >= 0.5
-                  ? "Docks are usually available here at this time."
-                  : "Docks can fill up at this hour — consider a nearby station as a backup.")
-              : (bikeProb === null || bikeProb < 0.2
-                  ? "Bikes are rarely available at this time."
-                  : stressHigh
-                    ? "There's almost always a bike here — but inventory runs thin, frequently just 1–2 when you arrive."
-                    : "Inventory here is comfortably deep. You're unlikely to be the last one.")}
+            {bikeProb === null || bikeProb < 0.2
+              ? "Bikes are rarely available at this time."
+              : stressHigh
+                ? "There's almost always a bike here — but inventory runs thin, frequently just 1–2 when you arrive."
+                : "Inventory here is comfortably deep. You're unlikely to be the last one."}
           </div>
         </div>
       </div>
 
       {/* 2. Probability by hour */}
       <div className="detail-section">
-        <div className="detail-section-title">Probability by hour</div>
+        <div className="detail-section-title">Probability of finding a bike</div>
         <HourLineChart
           values={hourValues}
           currentSlot={Math.floor(selectedTime / 5)}
@@ -197,22 +134,6 @@ export function StationDetailPanel() {
       <div className="detail-section">
         <div className="detail-section-title">Historical availability</div>
         <BarHistogram histogram={activeDist.histogram} />
-      </div>
-
-      {/* 4. Nearby stations */}
-      <div className="detail-section">
-        <div className="detail-section-title">Nearby alternatives</div>
-        {detail.nearby_stations.map(s => {
-          const dist = Math.round(Math.sqrt(s.dist_sq) * 111000);
-          return (
-            <div key={s.station_id} className="nearby-row" onClick={() => selectStation(s.station_id)}>
-              <div className="nearby-dot" style={{ background: probabilityToColor(activeProb) }} />
-              <span className="nearby-name">{s.station_name}</span>
-              <span className="nearby-dist">{dist < 1000 ? `${dist}m` : `${(dist / 1000).toFixed(1)}km`}</span>
-              <span className="nearby-pct" style={{ color: probabilityToColor(activeProb) }}>{fmtPct(activeProb)}</span>
-            </div>
-          );
-        })}
       </div>
     </div>
   );

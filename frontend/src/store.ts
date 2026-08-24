@@ -15,6 +15,16 @@ export const METRIC_TO_API: Record<Metric, string> = {
   fullness:    'bikes',   // fullness = mean_inventory / capacity, uses bike data
 };
 
+/** Short display label for each metric — shared by the map controls bar and station tooltip. */
+export const METRIC_LABEL: Record<Metric, string> = {
+  bike:        'Bike',
+  ebike:       'E-Bike',
+  dock:        'Dock',
+  reliability: 'Reliability',
+  stress:      'Stress',
+  fullness:    '% Full',
+};
+
 interface CommutePlan {
   originId: string;
   destId: string;

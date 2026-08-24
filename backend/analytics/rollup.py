@@ -23,6 +23,10 @@ METRIC_COLUMNS: dict[str, dict[str, str]] = {
     "docks":   {"avail": "docks_avail",   "low": "docks_low",   "sum": "docks_sum"},
 }
 
+# Bucket suffixes must match collector/rollup.py's HISTOGRAM_BUCKETS and
+# backend/analytics/stability.py's buckets = [0, 1, 3, 6, 11, 16].
+HISTOGRAM_BUCKET_SUFFIXES = ["h0", "h1_2", "h3_5", "h6_10", "h11_15", "h16p"]
+
 
 def rollup_available(conn: sqlite3.Connection) -> bool:
     """True if station_slot_rollup exists and has at least one row.
@@ -142,6 +146,26 @@ def fetch_station_low_window(
         (station_id, day_of_week, *slots),
     ).fetchone()
     return row["total"] or 0, row["low_count"] or 0
+
+
+def fetch_station_histogram_window(
+    conn: sqlite3.Connection, station_id: str, day_of_week: int, time_of_day: int,
+    metric: Metric, window_minutes: int,
+) -> list[int]:
+    """Summed inventory-value histogram bucket counts for one station over
+    the ±window, in bucket order (matches stability.py's labels)."""
+    slots = slots_in_window(time_of_day, window_minutes)
+    placeholders = ",".join("?" * len(slots))
+    bucket_cols = ",".join(f"SUM({metric}_{suffix}) AS {suffix}" for suffix in HISTOGRAM_BUCKET_SUFFIXES)
+    row = conn.execute(
+        f"""
+        SELECT {bucket_cols}
+        FROM station_slot_rollup
+        WHERE station_id = ? AND day_of_week = ? AND raw_slot IN ({placeholders})
+        """,
+        (station_id, day_of_week, *slots),
+    ).fetchone()
+    return [row[suffix] or 0 for suffix in HISTOGRAM_BUCKET_SUFFIXES]
 
 
 def fetch_all_stations_low_window(

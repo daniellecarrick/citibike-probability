@@ -32,7 +32,58 @@ CREATE TABLE IF NOT EXISTS station_snapshots (
     available_docks        INTEGER NOT NULL DEFAULT 0,
     is_seeded              INTEGER NOT NULL DEFAULT 0
 );
+
+-- Mirrors collector/database.py's station_slot_rollup. Left empty by
+-- default (rollup.rollup_available() is then False and analytics code
+-- falls back to scanning station_snapshots) — tests that want the
+-- rollup-backed code path insert rows explicitly via insert_rollup_row().
+CREATE TABLE IF NOT EXISTS station_slot_rollup (
+    station_id     TEXT NOT NULL,
+    day_of_week    INTEGER NOT NULL,
+    raw_slot       INTEGER NOT NULL,
+    total          INTEGER NOT NULL,
+    bikes_avail    INTEGER NOT NULL DEFAULT 0,
+    bikes_low      INTEGER NOT NULL DEFAULT 0,
+    bikes_sum      REAL NOT NULL DEFAULT 0,
+    bikes_h0       INTEGER NOT NULL DEFAULT 0,
+    bikes_h1_2     INTEGER NOT NULL DEFAULT 0,
+    bikes_h3_5     INTEGER NOT NULL DEFAULT 0,
+    bikes_h6_10    INTEGER NOT NULL DEFAULT 0,
+    bikes_h11_15   INTEGER NOT NULL DEFAULT 0,
+    bikes_h16p     INTEGER NOT NULL DEFAULT 0,
+    classic_avail  INTEGER NOT NULL DEFAULT 0,
+    classic_low    INTEGER NOT NULL DEFAULT 0,
+    classic_sum    REAL NOT NULL DEFAULT 0,
+    classic_h0     INTEGER NOT NULL DEFAULT 0,
+    classic_h1_2   INTEGER NOT NULL DEFAULT 0,
+    classic_h3_5   INTEGER NOT NULL DEFAULT 0,
+    classic_h6_10  INTEGER NOT NULL DEFAULT 0,
+    classic_h11_15 INTEGER NOT NULL DEFAULT 0,
+    classic_h16p   INTEGER NOT NULL DEFAULT 0,
+    ebikes_avail   INTEGER NOT NULL DEFAULT 0,
+    ebikes_low     INTEGER NOT NULL DEFAULT 0,
+    ebikes_sum     REAL NOT NULL DEFAULT 0,
+    ebikes_h0      INTEGER NOT NULL DEFAULT 0,
+    ebikes_h1_2    INTEGER NOT NULL DEFAULT 0,
+    ebikes_h3_5    INTEGER NOT NULL DEFAULT 0,
+    ebikes_h6_10   INTEGER NOT NULL DEFAULT 0,
+    ebikes_h11_15  INTEGER NOT NULL DEFAULT 0,
+    ebikes_h16p    INTEGER NOT NULL DEFAULT 0,
+    docks_avail    INTEGER NOT NULL DEFAULT 0,
+    docks_low      INTEGER NOT NULL DEFAULT 0,
+    docks_sum      REAL NOT NULL DEFAULT 0,
+    docks_h0       INTEGER NOT NULL DEFAULT 0,
+    docks_h1_2     INTEGER NOT NULL DEFAULT 0,
+    docks_h3_5     INTEGER NOT NULL DEFAULT 0,
+    docks_h6_10    INTEGER NOT NULL DEFAULT 0,
+    docks_h11_15   INTEGER NOT NULL DEFAULT 0,
+    docks_h16p     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (station_id, day_of_week, raw_slot)
+);
 """
+
+ROLLUP_METRICS = ["bikes", "classic", "ebikes", "docks"]
+ROLLUP_HIST_SUFFIXES = ["h0", "h1_2", "h3_5", "h6_10", "h11_15", "h16p"]
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,6 +155,33 @@ def insert_snapshots(
         VALUES (?,?,?,?,?,?,?)
         """,
         rows,
+    )
+    conn.commit()
+
+
+def insert_rollup_row(
+    conn: sqlite3.Connection,
+    station_id: str,
+    day_of_week: int,
+    raw_slot: int,
+    total: int,
+    **overrides,
+):
+    """Insert one station_slot_rollup row. Every per-metric avail/low/sum/
+    histogram-bucket column defaults to 0 — pass e.g. bikes_sum=12.0,
+    bikes_h3_5=2 as keyword overrides for the columns a test cares about."""
+    columns = ["station_id", "day_of_week", "raw_slot", "total"]
+    for m in ROLLUP_METRICS:
+        columns += [f"{m}_avail", f"{m}_low", f"{m}_sum"] + [f"{m}_{s}" for s in ROLLUP_HIST_SUFFIXES]
+
+    values = {c: 0 for c in columns}
+    values.update(station_id=station_id, day_of_week=day_of_week, raw_slot=raw_slot, total=total)
+    values.update(overrides)
+
+    placeholders = ",".join("?" * len(columns))
+    conn.execute(
+        f"INSERT INTO station_slot_rollup ({','.join(columns)}) VALUES ({placeholders})",
+        [values[c] for c in columns],
     )
     conn.commit()
 

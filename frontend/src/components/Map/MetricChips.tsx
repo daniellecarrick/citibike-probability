@@ -12,7 +12,7 @@ export function MetricChips() {
 
   return (
     <div className="metric-group">
-      <span className="day-pills-label">Availability</span>
+      <span className="filter-label">Availability</span>
       <div className="mode-toggle-track">
         {METRICS.map(m => (
           <button
