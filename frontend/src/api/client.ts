@@ -14,7 +14,8 @@ import type {
   StationProbability,
 } from '../types';
 
-const BASE = import.meta.env.VITE_API_URL ?? '';
+const runtimeConfig = (globalThis as typeof globalThis & { __APP_CONFIG__?: { API_URL?: string } }).__APP_CONFIG__ ?? {};
+const BASE = runtimeConfig.API_URL ?? import.meta.env.VITE_API_URL ?? '';
 
 async function get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
   const url = new URL(`${BASE}${path}`, window.location.origin);

@@ -6,7 +6,8 @@ import type { StationProbability } from '../../types';
 import { HeatSurface } from './HeatSurface';
 import { StationHoverTooltip } from './StationHoverTooltip';
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
+const runtimeConfig = (globalThis as typeof globalThis & { __APP_CONFIG__?: { MAPBOX_TOKEN?: string } }).__APP_CONFIG__ ?? {};
+mapboxgl.accessToken = runtimeConfig.MAPBOX_TOKEN ?? import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
 const SOURCE_ID     = 'stations';
 const CIRCLE_LAYER  = 'station-circles';

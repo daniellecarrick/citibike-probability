@@ -2,6 +2,15 @@
 set -e
 
 export PORT=${PORT:-80}
+export API_URL=${API_URL:-${VITE_API_URL:-}}
+export MAPBOX_TOKEN=${MAPBOX_TOKEN:-${VITE_MAPBOX_TOKEN:-}}
+
+cat > /usr/share/nginx/html/config.js <<EOF
+window.__APP_CONFIG__ = {
+  API_URL: "${API_URL}",
+  MAPBOX_TOKEN: "${MAPBOX_TOKEN}"
+};
+EOF
 
 if [ -n "$BACKEND_URL" ]; then
   # Ensure scheme is present — Railway internal hostnames arrive without one
