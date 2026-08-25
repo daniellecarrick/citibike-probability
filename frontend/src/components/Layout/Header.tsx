@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MethodologyModal } from '../Methodology/MethodologyModal';
-import logoSrc from '../../images/logo.png';
 
 const TABS = [
   { path: '/commute', label: 'Commute' },

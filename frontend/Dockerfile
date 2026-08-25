@@ -1,10 +1,11 @@
+# syntax=docker/dockerfile:1.6
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-ARG VITE_MAPBOX_TOKEN
-RUN npm run build
+RUN --mount=type=secret,id=mapbox_token \
+    VITE_MAPBOX_TOKEN="$(cat /run/secrets/mapbox_token)" npm run build
 
 FROM nginx:alpine
 RUN apk add --no-cache gettext

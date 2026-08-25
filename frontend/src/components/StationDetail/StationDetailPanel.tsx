@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { BarHistogram } from '../charts/BarHistogram';
 import { HourLineChart } from '../charts/HourLineChart';
 import { StackedAreaChart } from '../charts/StackedAreaChart';
 import { useStationDetail } from '../../hooks/useStationDetail';
@@ -149,8 +148,6 @@ export function StationDetailPanel() {
   const status     = statusLabel(activeProb);
 
   const stressHigh  = bikeStress !== null && bikeStress >= 42;
-
-  const activeDist = detail.distributions.bikes;
 
   return (
     <div style={{ animation: 'slideIn .32s cubic-bezier(.22,1,.36,1)' }}>
