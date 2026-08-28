@@ -1,22 +1,13 @@
 services:
-  collector:
-    build: ./collector
-    volumes:
-      - ./data:/data
-    environment:
-      - DB_PATH=/data/citibike.db
-    restart: unless-stopped
-
   backend:
     build: ./backend
     volumes:
       - ./data:/data
     environment:
       - DB_PATH=/data/citibike.db
+      - MAPBOX_TOKEN=${MAPBOX_TOKEN}
     ports:
       - "8000:8000"
-    depends_on:
-      - collector
 
   frontend:
     build:

@@ -5,10 +5,10 @@ Fetches real station metadata from GBFS, then generates synthetic historical
 snapshots with realistic demand patterns so the full UI can be tested before
 real data has accumulated.
 
-Usage:
-    python seed.py              # generates 90 days of data
-    python seed.py --days 30    # generates 30 days
-    python seed.py --clear      # removes existing snapshots first
+Usage (from the backend/ directory):
+    python3 seed.py              # generates 90 days of data
+    python3 seed.py --days 30    # generates 30 days
+    python3 seed.py --clear      # removes existing snapshots first
 """
 import argparse
 import math
@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from database import get_connection, init_db
+from collector.database import get_connection, init_db
 
 STATION_INFO_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_information.json"
 

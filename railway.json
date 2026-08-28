@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.railway.app/railway-schema.json",
   "services": {
-    "citibike-collector": {
+    "citibike-probability-backend": {
       "volumes": [
         {
           "name": "citibike-data-fdbH",
@@ -11,17 +11,6 @@
       "variables": {
         "DB_PATH": "/data/citibike.db",
         "MAPBOX_TOKEN": "pk.your_mapbox_public_token_here"
-      }
-    },
-    "citibike-probability-backend": {
-      "volumes": [
-        {
-          "name": "citibike-data-fdbH",
-          "mountPath": "/data"
-        }
-      ],
-      "variables": {
-        "DB_PATH": "/data/citibike.db"
       }
     }
   }

@@ -1,6 +1,7 @@
 """
-Citi Bike GBFS polling service.
+Citi Bike GBFS polling loop.
 Polls station_status every 5 minutes and writes snapshots to SQLite.
+Started as a background asyncio task from backend/main.py's lifespan.
 """
 import asyncio
 import logging
@@ -9,15 +10,10 @@ from datetime import datetime, timezone
 
 import httpx
 
-from database import get_connection, init_db
-from geocode import geocode_missing_stations
-from rollup import rebuild_rollup
+from collector.database import get_connection, init_db
+from collector.geocode import geocode_missing_stations
+from collector.rollup import rebuild_rollup
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [collector] %(levelname)s %(message)s",
-    datefmt="%Y-%m-%dT%H:%M:%S",
-)
 log = logging.getLogger(__name__)
 
 STATION_INFO_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_information.json"
@@ -178,7 +174,3 @@ async def run() -> None:
             sleep_for = max(0, POLL_INTERVAL_SECONDS - elapsed)
             log.debug(f"Sleeping {sleep_for:.1f}s until next poll")
             await asyncio.sleep(sleep_for)
-
-
-if __name__ == "__main__":
-    asyncio.run(run())

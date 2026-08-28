@@ -2,7 +2,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = os.environ.get("DB_PATH", str(Path(__file__).parent.parent / "data" / "citibike.db"))
+DB_PATH = os.environ.get("DB_PATH", str(Path(__file__).parent.parent.parent / "data" / "citibike.db"))
 
 
 def get_connection() -> sqlite3.Connection:

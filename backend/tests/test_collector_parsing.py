@@ -1,11 +1,11 @@
 """
-Tests for collector/collector.py GBFS parsing logic.
+Tests for collector/poller.py GBFS parsing logic.
 Focuses on _parse_ebikes() format variants and poll_status() filtering.
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from collector import _parse_ebikes
+from collector.poller import _parse_ebikes
 
 
 # ── _parse_ebikes ─────────────────────────────────────────────────────────────

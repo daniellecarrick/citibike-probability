@@ -194,6 +194,7 @@ def client(db):
     import sys
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+    os.environ["RUN_COLLECTOR"] = "0"
 
     from main import app
     from database import get_db

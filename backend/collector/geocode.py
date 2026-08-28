@@ -3,7 +3,7 @@ Derives borough + neighborhood per station via Mapbox's reverse-geocoding
 API, since neither is present in the GBFS station data. Runs once at
 collector startup (backfills every existing station, since all start with
 borough IS NULL) and again after every hourly station refresh (self-heals
-any newly-added stations) — see collector.py.
+any newly-added stations) — see poller.py.
 
 Results are stored permanently in stations.borough/neighborhood and never
 re-geocoded once populated.
@@ -15,7 +15,7 @@ from typing import Optional
 
 import httpx
 
-from database import get_connection
+from collector.database import get_connection
 
 log = logging.getLogger(__name__)
 

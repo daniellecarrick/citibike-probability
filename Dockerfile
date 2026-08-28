@@ -1,17 +1,12 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /app/backend
 
-COPY backend/requirements.txt /tmp/backend-req.txt
-COPY collector/requirements.txt /tmp/collector-req.txt
-RUN pip install --no-cache-dir -r /tmp/backend-req.txt -r /tmp/collector-req.txt
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/  /app/backend/
-COPY collector/ /app/collector/
-
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+COPY backend/ .
 
 ENV DB_PATH=/data/citibike.db
 
-CMD ["/app/start.sh"]
+CMD ["sh", "-c", "mkdir -p /data && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

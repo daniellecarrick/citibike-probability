@@ -28,18 +28,18 @@ It pulls live data from the Citi Bike GBFS feed every 5 minutes and builds up a 
 
 ## Architecture
 
-Three independent services:
+Two independent services:
 
 ```
 citibike-probability/
-├── collector/      # Polls the Citi Bike GBFS feed every 5 minutes
-├── backend/        # FastAPI — probability analytics and REST API
-├── frontend/       # React + TypeScript + Mapbox GL
+├── backend/            # FastAPI — probability analytics, REST API, and the GBFS collector
+│   └── collector/      # Polls the Citi Bike GBFS feed every 5 minutes, runs as a background task
+├── frontend/           # React + TypeScript + Mapbox GL
 └── data/
-    └── citibike.db # Shared SQLite database
+    └── citibike.db     # SQLite database
 ```
 
-The collector and backend share the same SQLite file. The collector writes; the backend reads. SQLite WAL mode allows both to run concurrently without blocking.
+The collector runs inside the backend process as a background asyncio task, started when the API starts and polling every 5 minutes for the life of the process — there's no separate service to deploy or keep alive. It writes to the same SQLite file the API reads from; WAL mode allows both to happen concurrently without blocking.
 
 ---
 
@@ -68,7 +68,6 @@ The map requires a Mapbox public access token.
 ### 1. Install Python dependencies
 
 ```bash
-pip install -r collector/requirements.txt
 pip install -r backend/requirements.txt
 ```
 
@@ -77,13 +76,13 @@ pip install -r backend/requirements.txt
 The app needs historical data to calculate probabilities. This command generates 90 days of synthetic data using real station locations and realistic demand patterns (morning rush, evening rush, weekends). It takes about 6 minutes to run.
 
 ```bash
-python3 collector/seed.py --days 90
+cd backend && python3 seed.py --days 90
 ```
 
 To re-seed from scratch at any point:
 
 ```bash
-python3 collector/seed.py --days 90 --clear
+cd backend && python3 seed.py --days 90 --clear
 ```
 
 ### 3. Configure the frontend environment
@@ -112,27 +111,18 @@ npm install
 
 ## Running locally
 
-You need three processes running: the backend, the data collector, and the frontend. Open three terminal tabs.
+You need two processes running: the backend and the frontend. Open two terminal tabs.
 
-**Terminal 1 — Backend API**
+**Terminal 1 — Backend API + collector**
 
 ```bash
 cd backend
-DB_PATH=../data/citibike.db python3 -m uvicorn main:app --port 8000 --reload
+DB_PATH=../data/citibike.db MAPBOX_TOKEN=pk.your_token_here python3 -m uvicorn main:app --port 8000 --reload
 ```
 
-The API will be available at `http://localhost:8000`. You can view the auto-generated docs at `http://localhost:8000/docs`.
+The API will be available at `http://localhost:8000`, with auto-generated docs at `http://localhost:8000/docs`. On startup this also launches the GBFS collector as a background task — it polls the live Citi Bike feed every 5 minutes and appends to the database for as long as the process runs. Leave it running to build up real historical data over time; probabilities become meaningful after 2–3 weeks of collection and reliable after 4–8 weeks. Set `RUN_COLLECTOR=0` to start the API without it (e.g. if you're only working off seeded data and don't want to poll the live feed).
 
-**Terminal 2 — Data collector** (optional while developing; required to accumulate real data)
-
-```bash
-cd collector
-DB_PATH=../data/citibike.db python3 collector.py
-```
-
-This polls the live Citi Bike feed every 5 minutes and appends to the database. Leave it running in the background to build up real historical data over time. Probabilities become meaningful after 2–3 weeks of collection and reliable after 4–8 weeks.
-
-**Terminal 3 — Frontend**
+**Terminal 2 — Frontend**
 
 ```bash
 cd frontend

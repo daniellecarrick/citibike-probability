@@ -1,19 +1,19 @@
 """
 Rebuilds station_slot_rollup — a pre-aggregated (station, day-of-week, 5-min
 slot) summary of station_snapshots, sized ~stations * 2016 slots regardless
-of how much raw history accumulates. Read endpoints in backend/ query this
+of how much raw history accumulates. backend/analytics/rollup.py queries this
 instead of scanning station_snapshots directly.
 
 station_snapshots is never modified here — this is a derived/disposable
 cache table, safe to drop and rebuild at any time from raw data. It's
-rebuilt on a timer (see collector.py), not updated incrementally, because a
+rebuilt on a timer (see poller.py), not updated incrementally, because a
 90-day *rolling* window can't be maintained with simple running counters
 without keeping per-snapshot detail — a periodic full rebuild is the honest
 way to keep it both fast and correct.
 
 Day-of-week/slot constants must match backend/analytics/probability.py —
-duplicated here rather than imported because the collector and backend are
-deployed and run as separate processes/packages.
+duplicated here rather than imported because this module intentionally has
+no dependency on the read-side analytics package.
 """
 import logging
 import sqlite3
