@@ -19,17 +19,30 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] %(levelname)s %(message)s",
     datefmt="%Y-%m-%dT%H:%M:%S",
 )
+log = logging.getLogger(__name__)
 
 # Tests set this to "0" — a raw TestClient(app) startup must not spin up a
 # background task that hits the live GBFS feed and writes to the real DB_PATH.
 RUN_COLLECTOR = os.environ.get("RUN_COLLECTOR", "1") != "0"
 
 
+def _log_if_crashed(task: asyncio.Task) -> None:
+    # Without this, an uncaught exception in the collector task sits invisible
+    # until the Task object is garbage collected — which doesn't happen while
+    # the lifespan closure holds a reference to it for the app's whole life,
+    # i.e. never, in practice. This surfaces it the moment it happens instead.
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        log.error("Collector task crashed", exc_info=exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # run_collector()'s own poll loop already catches and logs every
-    # exception per cycle, so this task only ever ends via the cancel below.
     task = asyncio.create_task(run_collector()) if RUN_COLLECTOR else None
+    if task:
+        task.add_done_callback(_log_if_crashed)
     yield
     if task:
         task.cancel()
