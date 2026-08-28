@@ -49,9 +49,14 @@ def get_bulk_map_probabilities(
     """
     All 288 five-minute time slots for a given day/metric.
     Frontend caches this and scrubs locally for smooth animation.
-    Returns: { slot_index: [{ station_id, probability, mean_inventory,
-    sample_count, stress_score }] } — join on station_id against
-    GET /api/stations for name/lat/lng/capacity.
+
+    Columnar shape to avoid repeating each station's UUID 288 times:
+    { station_ids: [id, ...], slots: { slot_index: { probability: [...],
+    mean_inventory: [...], sample_count: [...] } } } — each value array is
+    positionally aligned with station_ids. Join by index against
+    GET /api/stations (itself ordered however the DB returns it; look up by
+    building an id->index map from this response's station_ids, don't
+    assume /api/stations shares the same order).
     """
     data = get_bulk_day_probabilities(conn, day, metric)
     return ORJSONResponse(content=data)

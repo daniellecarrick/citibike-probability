@@ -220,7 +220,7 @@ def get_all_stations_probability(
     return result
 
 
-_bulk_cache: dict[tuple, tuple[float, dict[int, list[dict]]]] = {}
+_bulk_cache: dict[tuple, tuple[float, dict]] = {}
 BULK_CACHE_TTL_SECONDS = 300  # matches the collector's 5-minute poll interval
 
 
@@ -230,9 +230,11 @@ def get_bulk_day_probabilities(
     metric: Metric = "bikes",
     window_minutes: int = 15,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
-) -> dict[int, list[dict]]:
+) -> dict:
     """
     All 288 five-minute time slots for a given day/metric, cached in memory.
+    Returns {"station_ids": [...], "slots": {"0": {...}, ..., "287": {...}}} —
+    see _compute_bulk_day_probabilities for the columnar per-slot shape.
 
     Underlying snapshot data only changes as fast as the collector polls
     (every 5 min), so a freshly computed result stays valid for that long —
@@ -292,19 +294,27 @@ def _compute_bulk_day_probabilities(
     metric: Metric,
     window_minutes: int,
     lookback_days: int,
-) -> dict[int, list[dict]]:
+) -> dict:
     """
     Uses a single SQL aggregation instead of 288 per-slot queries, then a
     circular sliding window (not a per-slot recompute) to aggregate the
     ±window_slots neighbourhood for all 288 target slots in one pass per
     station — O(288 + window) per station instead of O(288 * window).
 
-    Per-slot entries carry only station_id + the computed numbers, not the
-    static station fields (name/lat/lng/capacity) — those are already
-    available from /api/stations, and repeating them across all 288 slots
-    for ~2,400 stations was inflating this response to well over 100MB.
-    The frontend joins on station_id against the stations list it already
-    has loaded.
+    Response is columnar, not one object per (station, slot): a single
+    ordered station_ids list plus, per slot, parallel value arrays indexed
+    to that same order. The previous shape repeated each station's full
+    UUID string (and every field name) 288 times — with ~2,500 stations
+    that put the raw JSON over 100MB. Columnar format states each station_id
+    once and gzips far better besides, since repeated numbers-in-arrays
+    compress better than the same values scattered across repeated keyed
+    objects. The frontend looks stations up by index into station_ids
+    instead of by station_id equality.
+
+    stress_score is omitted entirely — it was always None here (this
+    endpoint doesn't compute it), so it was pure dead weight in every one of
+    those records. Real per-slot stress scores are only available via the
+    non-bulk endpoints (/api/map, /api/stations/{id}/detail).
 
     Slot data comes from the pre-aggregated rollup table when available
     (indexed lookup instead of a multi-million-row scan) and falls back to
@@ -318,7 +328,10 @@ def _compute_bulk_day_probabilities(
     else:
         slot_data = _slot_data_from_raw(conn, day_of_week, metric, lookback_days)
 
-    result: dict[int, list[dict]] = {slot: [] for slot in range(288)}
+    slots: dict[int, dict[str, list]] = {
+        slot: {"probability": [], "mean_inventory": [], "sample_count": []}
+        for slot in range(288)
+    }
     zero = (0, 0, 0.0)
 
     for station_id in station_ids:
@@ -343,12 +356,9 @@ def _compute_bulk_day_probabilities(
                 avail += enter_a - leave_a
                 sum_inv += enter_s - leave_s
 
-            result[target_slot].append({
-                "station_id": station_id,
-                "probability": (avail / total) if total > 0 else None,
-                "mean_inventory": (sum_inv / total) if total > 0 else None,
-                "sample_count": total,
-                "stress_score": None,
-            })
+            slot = slots[target_slot]
+            slot["probability"].append(round(avail / total, 4) if total > 0 else None)
+            slot["mean_inventory"].append(round(sum_inv / total, 3) if total > 0 else None)
+            slot["sample_count"].append(total)
 
-    return result
+    return {"station_ids": station_ids, "slots": slots}

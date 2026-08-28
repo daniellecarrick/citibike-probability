@@ -5,8 +5,22 @@ import { useStationDetail } from '../../hooks/useStationDetail';
 import { useStore, METRIC_TO_API } from '../../store';
 import { probabilityToColor } from '../../utils/colorScale';
 import { api } from '../../api/client';
+import type { BulkMapData } from '../../types';
 
 const SCALE_DOTS = [0, 0.5, 1].map(v => probabilityToColor(v));
+
+// /api/map/bulk is columnar (station_ids + parallel per-slot arrays, see
+// types.ts) rather than one record per station per slot — look a station's
+// value up by index instead of by equality search on every slot.
+function bulkSeries(
+  cached: BulkMapData | undefined,
+  stationId: string | null,
+  field: 'probability' | 'mean_inventory',
+): number[] {
+  const idx = stationId ? cached?.station_ids.indexOf(stationId) ?? -1 : -1;
+  if (!cached || idx === -1) return Array(288).fill(0);
+  return Array.from({ length: 288 }, (_, slot) => cached.slots[String(slot)]?.[field][idx] ?? 0);
+}
 
 function statusLabel(prob: number | null): { label: string; color: string } {
   const color = probabilityToColor(prob);
@@ -25,13 +39,10 @@ export function StationDetailPanel() {
   } = useStore();
 
   const cacheKey = `${selectedDay}_${METRIC_TO_API[selectedMetric]}`;
-  const hourValues = useMemo<number[]>(() => {
-    const cached = bulkCache[cacheKey];
-    if (!cached || !selectedStationId) return Array(288).fill(0);
-    return Array.from({ length: 288 }, (_, slot) =>
-      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.probability ?? 0
-    );
-  }, [bulkCache, cacheKey, selectedStationId]);
+  const hourValues = useMemo<number[]>(
+    () => bulkSeries(bulkCache[cacheKey], selectedStationId, 'probability'),
+    [bulkCache, cacheKey, selectedStationId],
+  );
 
   // Dock availability is fetched independently of the map's selected metric,
   // since a visitor viewing "bike" chances still wants to see dock chances.
@@ -43,13 +54,10 @@ export function StationDetailPanel() {
       .catch(console.error);
   }, [dockCacheKey, selectedDay, bulkCache, setBulkCache]);
 
-  const dockHourValues = useMemo<number[]>(() => {
-    const cached = bulkCache[dockCacheKey];
-    if (!cached || !selectedStationId) return Array(288).fill(0);
-    return Array.from({ length: 288 }, (_, slot) =>
-      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.probability ?? 0
-    );
-  }, [bulkCache, dockCacheKey, selectedStationId]);
+  const dockHourValues = useMemo<number[]>(
+    () => bulkSeries(bulkCache[dockCacheKey], selectedStationId, 'probability'),
+    [bulkCache, dockCacheKey, selectedStationId],
+  );
 
   // Classic + e-bike mean counts, stacked, for the "number of bikes" area chart.
   const classicCacheKey = `${selectedDay}_classic`;
@@ -67,30 +75,21 @@ export function StationDetailPanel() {
     }
   }, [classicCacheKey, ebikeCacheKey, selectedDay, bulkCache, setBulkCache]);
 
-  const classicCountValues = useMemo<number[]>(() => {
-    const cached = bulkCache[classicCacheKey];
-    if (!cached || !selectedStationId) return Array(288).fill(0);
-    return Array.from({ length: 288 }, (_, slot) =>
-      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.mean_inventory ?? 0
-    );
-  }, [bulkCache, classicCacheKey, selectedStationId]);
+  const classicCountValues = useMemo<number[]>(
+    () => bulkSeries(bulkCache[classicCacheKey], selectedStationId, 'mean_inventory'),
+    [bulkCache, classicCacheKey, selectedStationId],
+  );
 
-  const ebikeCountValues = useMemo<number[]>(() => {
-    const cached = bulkCache[ebikeCacheKey];
-    if (!cached || !selectedStationId) return Array(288).fill(0);
-    return Array.from({ length: 288 }, (_, slot) =>
-      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.mean_inventory ?? 0
-    );
-  }, [bulkCache, ebikeCacheKey, selectedStationId]);
+  const ebikeCountValues = useMemo<number[]>(
+    () => bulkSeries(bulkCache[ebikeCacheKey], selectedStationId, 'mean_inventory'),
+    [bulkCache, ebikeCacheKey, selectedStationId],
+  );
 
   // Dock counts reuse the bulk data already fetched for the dock probability chart above.
-  const dockCountValues = useMemo<number[]>(() => {
-    const cached = bulkCache[dockCacheKey];
-    if (!cached || !selectedStationId) return Array(288).fill(0);
-    return Array.from({ length: 288 }, (_, slot) =>
-      cached[String(slot)]?.find(s => s.station_id === selectedStationId)?.mean_inventory ?? 0
-    );
-  }, [bulkCache, dockCacheKey, selectedStationId]);
+  const dockCountValues = useMemo<number[]>(
+    () => bulkSeries(bulkCache[dockCacheKey], selectedStationId, 'mean_inventory'),
+    [bulkCache, dockCacheKey, selectedStationId],
+  );
 
   // Classic/e-bike/dock mean counts don't sum to capacity (each is averaged
   // independently), which reads as a bug in a stacked chart. Normalize each

@@ -20,9 +20,9 @@ export function useMapData(stations: Station[] = []) {
   const selectedTimeRef = useRef(selectedTime);
   selectedTimeRef.current = selectedTime;
 
-  // The bulk endpoint returns slim entries (station_id + numbers only) to
-  // avoid repeating static station fields across all 288 slots — join them
-  // back against the already-fetched stations list here.
+  // The bulk endpoint returns columnar data (station_ids + parallel value
+  // arrays per slot) to avoid repeating station_id and static station
+  // fields across all 288 slots — join them back by index here.
   const stationById = useMemo(
     () => new Map(stations.map(s => [s.station_id, s])),
     [stations],
@@ -41,12 +41,20 @@ export function useMapData(stations: Station[] = []) {
     const cached = bulkCache[cacheKey];
     if (cached) {
       const slot = Math.floor(selectedTime / 5);
-      const slotData = cached[String(slot)];
+      const slotData = cached.slots[String(slot)];
       if (slotData && stationById.size > 0) {
         const merged: StationProbability[] = [];
-        for (const sp of slotData) {
-          const station = stationById.get(sp.station_id);
-          if (station) merged.push({ ...station, ...sp });
+        for (let i = 0; i < cached.station_ids.length; i++) {
+          const station = stationById.get(cached.station_ids[i]);
+          if (station) {
+            merged.push({
+              ...station,
+              probability: slotData.probability[i],
+              mean_inventory: slotData.mean_inventory[i],
+              sample_count: slotData.sample_count[i],
+              stress_score: null,
+            });
+          }
         }
         setCurrentMapData(merged);
       }

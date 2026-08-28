@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useStore } from './store';
+import type { BulkMapData } from './types';
 
 beforeEach(() => {
   // Reset to known baseline state before each test
@@ -66,15 +67,20 @@ describe('setCommute', () => {
 });
 
 describe('setBulkCache', () => {
+  const fakeBulk = (): BulkMapData => ({
+    station_ids: [],
+    slots: { '0': { probability: [], mean_inventory: [], sample_count: [] } },
+  });
+
   it('stores bulk data under the given key', () => {
-    const data = { '0': [], '1': [] } as ReturnType<typeof useStore.getState>['bulkCache'][string];
-    useStore.getState().setBulkCache('0_bikes', data!);
+    const data = fakeBulk();
+    useStore.getState().setBulkCache('0_bikes', data);
     expect(useStore.getState().bulkCache['0_bikes']).toBe(data);
   });
 
   it('does not overwrite other keys', () => {
-    useStore.getState().setBulkCache('0_bikes', { '0': [] });
-    useStore.getState().setBulkCache('1_bikes', { '0': [] });
+    useStore.getState().setBulkCache('0_bikes', fakeBulk());
+    useStore.getState().setBulkCache('1_bikes', fakeBulk());
     expect(useStore.getState().bulkCache['0_bikes']).toBeDefined();
     expect(useStore.getState().bulkCache['1_bikes']).toBeDefined();
   });

@@ -18,12 +18,13 @@ export function StationHoverTooltip({ station, tooltipRef }: Props) {
   const stationId = station?.id ?? null;
 
   // Build 24h probability series for hovered station from bulk cache.
+  // Bulk data is columnar (station_ids + parallel per-slot arrays) — look
+  // the station up by index rather than by equality search on every slot.
   // Runs only when cache or hovered station changes — not on every mousemove.
   const series = useMemo<(number | null)[]>(() => {
-    if (!cached || !stationId) return Array.from({ length: 288 }, () => null);
-    return Array.from({ length: 288 }, (_, slot) =>
-      cached[String(slot)]?.find(s => s.station_id === stationId)?.probability ?? null
-    );
+    const idx = stationId ? cached?.station_ids.indexOf(stationId) ?? -1 : -1;
+    if (!cached || idx === -1) return Array.from({ length: 288 }, () => null);
+    return Array.from({ length: 288 }, (_, slot) => cached.slots[String(slot)]?.probability[idx] ?? null);
   }, [cached, stationId]);
 
   // Always render so tooltipRef is attached; hide via display:none when no station.

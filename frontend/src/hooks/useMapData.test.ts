@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useMapData } from './useMapData';
 import { useStore } from '../store';
-import type { BulkMapData, SlotProbability } from '../types';
+import type { BulkMapData } from '../types';
 
 vi.mock('../api/client', () => ({
   api: {
@@ -18,9 +18,12 @@ import { api } from '../api/client';
 const mockBulk     = api.map.bulk as ReturnType<typeof vi.fn>;
 const mockSnapshot = api.map.snapshot as ReturnType<typeof vi.fn>;
 
-const FAKE_BULK: BulkMapData = Object.fromEntries(
-  Array.from({ length: 288 }, (_, i) => [String(i), [] as SlotProbability[]])
-) as BulkMapData;
+const FAKE_BULK: BulkMapData = {
+  station_ids: [],
+  slots: Object.fromEntries(
+    Array.from({ length: 288 }, (_, i) => [String(i), { probability: [], mean_inventory: [], sample_count: [] }])
+  ),
+};
 const FAKE_SNAP = [{ station_id: 'A', probability: 0.5 }];
 
 beforeEach(() => {

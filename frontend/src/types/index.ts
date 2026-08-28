@@ -125,19 +125,23 @@ export interface CommuteAvailabilitySeries {
   slots: CommuteAvailabilitySlot[];
 }
 
-// Slim per-slot entry from /api/map/bulk — station_id only, no name/lat/lng/
-// capacity (those are static and already available from /api/stations; the
-// bulk endpoint omits them to avoid repeating them across all 288 slots).
-export interface SlotProbability {
-  station_id: string;
-  probability: number | null;
-  mean_inventory: number | null;
-  sample_count: number;
-  stress_score: number | null;
+// Columnar per-slot data from /api/map/bulk — each array is positionally
+// aligned with BulkMapData.station_ids (index i in every array here is the
+// same station as station_ids[i]). No station_id or field names repeated
+// per station — that was inflating the response past 100MB uncompressed.
+// stress_score isn't included; this endpoint never computes it.
+export interface BulkSlotData {
+  probability: (number | null)[];
+  mean_inventory: (number | null)[];
+  sample_count: number[];
 }
 
-// Bulk animation data: slot_index (0-287) → slim station probabilities
-export type BulkMapData = Record<string, SlotProbability[]>;
+// Bulk animation data: a fixed station order plus, per slot_index (0-287),
+// parallel value arrays in that same order.
+export interface BulkMapData {
+  station_ids: string[];
+  slots: Record<string, BulkSlotData>;
+}
 
 // Admin types
 export interface AdminSummary {

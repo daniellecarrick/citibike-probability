@@ -53,8 +53,12 @@ def test_map_bulk_has_288_keys(client, db):
     resp = client.get("/api/map/bulk", params={"day": 1, "metric": "bikes"})
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 288
-    assert "0" in data and "287" in data
+    assert "station_ids" in data
+    assert len(data["slots"]) == 288
+    assert "0" in data["slots"] and "287" in data["slots"]
+    idx = data["station_ids"].index("S1")
+    assert len(data["slots"]["0"]["probability"]) == len(data["station_ids"])
+    assert data["slots"]["0"]["sample_count"][idx] >= 0
 
 
 def test_commute_success(client, db):
