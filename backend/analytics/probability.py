@@ -18,6 +18,7 @@ import time
 from typing import Literal
 
 from analytics import rollup
+from analytics.stale_cache import StaleWhileRevalidateCache
 
 Metric = Literal["bikes", "classic", "ebikes", "docks"]
 
@@ -220,8 +221,19 @@ def get_all_stations_probability(
     return result
 
 
-_bulk_cache: dict[tuple, tuple[float, dict]] = {}
-BULK_CACHE_TTL_SECONDS = 300  # matches the collector's 5-minute poll interval
+# This reads station_slot_rollup (via rollup.fetch_day_slot_data), which the
+# collector updates roughly hourly (collector/poller.py's incremental
+# rollup job), not every 5-minute poll — that only touches the raw
+# station_snapshots table. TTL just marks entries stale for the scheduler
+# below to notice; it never gates what a live request gets back (see
+# StaleWhileRevalidateCache) — a request only ever computes synchronously
+# the first time a (day, metric) combination is ever requested.
+BULK_CACHE_TTL_SECONDS = 3600
+_bulk_cache: StaleWhileRevalidateCache[dict] = StaleWhileRevalidateCache(BULK_CACHE_TTL_SECONDS)
+
+
+def _bulk_cache_key(day_of_week: int, metric: Metric, window_minutes: int, lookback_days: int) -> tuple:
+    return (day_of_week, metric, window_minutes, lookback_days)
 
 
 def get_bulk_day_probabilities(
@@ -236,20 +248,32 @@ def get_bulk_day_probabilities(
     Returns {"station_ids": [...], "slots": {"0": {...}, ..., "287": {...}}} —
     see _compute_bulk_day_probabilities for the columnar per-slot shape.
 
-    Underlying snapshot data only changes as fast as the collector polls
-    (every 5 min), so a freshly computed result stays valid for that long —
-    cache it so repeat requests (metric switches, other users, page reloads)
-    are instant instead of re-running the full sliding-window pass.
+    Never blocks on recomputation except the very first time a given
+    (day, metric) combination is requested — see StaleWhileRevalidateCache.
+    Refreshing stale entries is the scheduler's job (poller.py calls
+    refresh_bulk_day_probabilities after every rollup update), not this
+    function's.
     """
-    cache_key = (day_of_week, metric, window_minutes, lookback_days)
-    cached = _bulk_cache.get(cache_key)
-    now = time.time()
-    if cached is not None and now - cached[0] < BULK_CACHE_TTL_SECONDS:
-        return cached[1]
+    key = _bulk_cache_key(day_of_week, metric, window_minutes, lookback_days)
+    return _bulk_cache.get_or_compute(
+        key, lambda: _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
+    )
 
-    result = _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
-    _bulk_cache[cache_key] = (now, result)
-    return result
+
+def refresh_bulk_day_probabilities(
+    conn: sqlite3.Connection,
+    day_of_week: int,
+    metric: Metric = "bikes",
+    window_minutes: int = 15,
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+) -> dict:
+    """Forces a recompute of one (day, metric) bulk cache entry. Called by
+    the collector's scheduler after every rollup update — readers keep
+    getting the old value via get_bulk_day_probabilities until this returns."""
+    key = _bulk_cache_key(day_of_week, metric, window_minutes, lookback_days)
+    return _bulk_cache.refresh(
+        key, lambda: _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
+    )
 
 
 def _slot_data_from_raw(
