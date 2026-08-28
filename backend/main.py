@@ -25,6 +25,20 @@ log = logging.getLogger(__name__)
 # background task that hits the live GBFS feed and writes to the real DB_PATH.
 RUN_COLLECTOR = os.environ.get("RUN_COLLECTOR", "1") != "0"
 
+# The collector's startup does init_db() + a full rollup rebuild scan over
+# station_snapshots (millions of rows and growing) before its first poll.
+# That scan contends for disk I/O with anything else touching the same
+# SQLite file — including the platform's own healthcheck request — and on a
+# large enough table can starve it past the healthcheck's timeout, taking
+# down an otherwise-healthy deploy. Delaying collector start gives the
+# healthcheck a clean, uncontested window to pass first.
+COLLECTOR_START_DELAY_SECONDS = 45
+
+
+async def _delayed_start(delay: float) -> None:
+    await asyncio.sleep(delay)
+    await run_collector()
+
 
 def _log_if_crashed(task: asyncio.Task) -> None:
     # Without this, an uncaught exception in the collector task sits invisible
@@ -40,7 +54,7 @@ def _log_if_crashed(task: asyncio.Task) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(run_collector()) if RUN_COLLECTOR else None
+    task = asyncio.create_task(_delayed_start(COLLECTOR_START_DELAY_SECONDS)) if RUN_COLLECTOR else None
     if task:
         task.add_done_callback(_log_if_crashed)
     yield
