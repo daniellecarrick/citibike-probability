@@ -245,7 +245,8 @@ export function CommutePlanner({ stations }: Props) {
     {!commute && (
     <>
     <div className="commute-hero">
-    <h1>How Reliable is Your CitiBike Route?</h1>
+    <h1>Know before you ride.</h1>
+    <p className="commute-hero-subhead">How reliable is your Citi Bike route?</p>
     <p className="commute-subtitle">
       See the odds of finding a bike and an open dock before you leave — for any route, any day, any time.
     </p>

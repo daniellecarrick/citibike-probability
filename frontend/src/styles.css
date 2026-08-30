@@ -7,11 +7,15 @@
 
   /* Neutrals */
   --ink:          #16181d;
-  --text-strong: #e7e9ee;
+  --text-strong: var(--text-navy);
   --text-muted:   #6c727e;
   --text-faint:   #9aa1ad;
   --hairline:     #c2cad4;
-  --app-bg:       #0085e4;
+  --page-bg:      #f4f7fa;
+  --text-navy:    #14213d;
+  --accent-blue:      #168fe5;
+  --accent-blue-deep: #0876c9;
+  --app-bg:       var(--page-bg);
   --rail-bg:      #f7f8fa;
   --card-bg:      #ffffff;
   --tint-blue:    #eaf4ff;
@@ -59,10 +63,10 @@ body {
 button { cursor: pointer; font-family: inherit; }
 h1 {
   color: var(--text-strong);
-  font-family: var(--sans-serif);
+  font-family: var(--sans);
+  font-weight: 700;
   font-size: 56px;
   text-align: center;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.12);
   text-wrap: balance;
 }
 /* ─── App Layout ────────────────────────────────────────────────── */
@@ -444,8 +448,8 @@ h1 {
 /* ─── Planner card (Commute page) ───────────────────────────────── */
 .planner-card {
   width: 100%;
-  max-width: 820px;
-  padding: 24px;
+  max-width: 960px;
+  padding: 20px;
 }
 .planner-input-row {
   display: flex;
@@ -458,8 +462,8 @@ h1 {
 .planner-arrow-btn {
   flex-shrink: 0;
   width: 40px; height: 40px;
-  border: none;
-  background: none;
+  border: 1px solid var(--input-border);
+  background: var(--card-bg);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -474,7 +478,7 @@ h1 {
   transform: rotate(90deg);
 }
 .planner-cta-btn {
-  height: 64px;
+  height: 57px;
   padding: 0 28px;
   white-space: nowrap;
   flex-shrink: 0;
@@ -487,7 +491,7 @@ h1 {
   align-items: center;
   gap: 8px;
   width: 100%;
-  max-width: 820px;
+  max-width: 960px;
 }
 .commute-cards-track {
   position: relative;
@@ -528,7 +532,8 @@ h1 {
   gap: 3px;
   align-items: flex-start;
   border-radius: 12px;
-  background: var(--bg-light);
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
   padding: 26px 14px 12px;
   text-align: left;
   flex: 0 0 220px;
@@ -563,7 +568,7 @@ h1 {
   color: var(--text-muted);
 }
 .commute-card-badge.badge-starred { background: rgba(245,184,0,1); color: #a67600; }
-.commute-card-badge.badge-recent  { background: rgba(31,162,255,1); color: white; }
+.commute-card-badge.badge-recent  { background: var(--tint-blue); color: var(--accent-blue-deep); }
 
 .saved-quick-load {
   display: flex;
@@ -582,7 +587,7 @@ h1 {
   border: 1px solid var(--input-border);
   border-radius: 12px;
   background: var(--card-bg);
-  height: 64px;
+  height: 57px;
   display: flex;
   align-items: center;
   padding: 0 16px;
@@ -878,7 +883,7 @@ h1 {
 }
 .cta-btn {
   display: inline-block;
-  background: var(--scale-5);
+  background: var(--accent-blue);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -887,9 +892,9 @@ h1 {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity .15s;
+  transition: background .15s;
 }
-.cta-btn:hover { opacity: 0.88; }
+.cta-btn:hover { background: var(--accent-blue-deep); }
 .scale-hint {
   display: flex;
   align-items: center;
@@ -1269,23 +1274,29 @@ h1 {
 }
 .commute-planner > * { margin: 0 auto; }
 
-/* Hero area (heading, planner card, quick-access row) fills ~90% of the
-   viewport on landing, pushing the Patterns teaser below the fold. */
+/* Hero area (heading, planner card, quick-access row) sits above the
+   quick-access row and Patterns teaser. */
 .commute-hero {
   width: 100%;
-  min-height: 90vh;
+  min-height: 62vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 24px;
-  background: radial-gradient(ellipse 60% 55% at 50% 38%, rgba(255,255,255,0.14), rgba(255,255,255,0) 70%);
+}
+.commute-hero-subhead {
+  text-align: center;
+  color: var(--text-navy);
+  font-weight: 500;
+  font-size: 26px;
+  max-width: 640px;
+  margin-top: -12px;
 }
 .commute-subtitle {
   text-align: center;
-  color: var(--text-strong);
-  opacity: 0.9;
-  font-size: 18px;
+  color: var(--text-muted);
+  font-size: 21px;
   max-width: 520px;
   margin-top: -12px;
   margin-bottom: 36px;
