@@ -8,6 +8,7 @@ import { filterStations } from '../../utils/stationSearch';
 import { DAYS_FULL, formatTime } from '../../utils/time';
 import { AvailabilityChart } from './AvailabilityChart';
 import { CommuteMatrix } from './CommuteMatrix';
+import { RecommendationList } from './RecommendationList';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 import type { SavedCommute } from '../../hooks/useSavedCommutes';
 import type { DayOfWeek, Station } from '../../types';
@@ -167,7 +168,7 @@ interface Props {
 
 export function CommutePlanner({ stations }: Props) {
   const { commute, setCommute, selectedDay, selectedTime, setDay, setTime, setMapMode } = useStore();
-  const { result, loading } = useCommute();
+  const { result, recommendations, loading } = useCommute();
   const { matrix } = useCommuteMatrix();
   const { series } = useCommuteAvailabilitySeries();
   const { recent, starred, addRecent, isStarred } = useSavedCommutes();
@@ -394,16 +395,15 @@ export function CommutePlanner({ stations }: Props) {
           {loading && <div className="loading">Calculating forecast…</div>}
 
           {matrix && <CommuteMatrix matrix={matrix} />}
+
+          {hasCommute && result && recommendations.length > 0 && (
+            <RecommendationList recommendations={recommendations} />
+          )}
         </>
       )}
 
       {/* Absolute bike/dock availability across the day */}
       {series && <AvailabilityChart series={series} />}
-
-      {/* Recommendations
-      {hasCommute && result && recommendations.length > 0 && (
-        <RecommendationList recommendations={recommendations} currentTime={selectedTime} />
-      )} */}
     </div>
   );
 }

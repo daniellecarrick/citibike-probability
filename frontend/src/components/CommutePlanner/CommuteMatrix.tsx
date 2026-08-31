@@ -162,21 +162,21 @@ export function CommuteMatrix({ matrix }: Props) {
 
       {hoverBucket && hoverPos && (
         <div
-          className="matrix-hover-tooltip"
+          className="chart-hover-tooltip"
           style={{ left: hoverPos.x + 14, top: hoverPos.y - 64 }}
         >
-          <div className="matrix-tooltip-title">
+          <div className="chart-tooltip-title">
             {DAY_LABELS[matrix.days[hover!.day].day_of_week]} {formatTime(hoverBucket.departure_minute)}
           </div>
-          <div className="matrix-tooltip-row">
+          <div className="chart-tooltip-row">
             <span>Success</span>
             <strong>{fmtPct(hoverBucket.success_probability)}</strong>
           </div>
-          <div className="matrix-tooltip-row">
+          <div className="chart-tooltip-row">
             <span>Bike avail.</span>
             <strong>{fmtPct(hoverBucket.bike_probability)}</strong>
           </div>
-          <div className="matrix-tooltip-row">
+          <div className="chart-tooltip-row">
             <span>Dock avail.</span>
             <strong>{fmtPct(hoverBucket.dock_probability)}</strong>
           </div>

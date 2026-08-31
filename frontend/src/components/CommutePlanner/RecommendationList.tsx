@@ -1,23 +1,44 @@
 /**
- * "Better departure windows" — non-interactive gradient line chart
- * sweeping ±3h from selected departure time.
+ * "Best time to leave" — gradient line chart sweeping ±60min around the
+ * selected departure time, full width to match the other results charts.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Recommendation } from '../../types';
 import { probabilityToColor } from '../../utils/colorScale';
 
 interface Props {
   recommendations: Recommendation[];
-  currentTime?: number; // minutes since midnight (unused — kept for future reference line)
 }
 
-const W = 332;
-const H = 124;
-const PAD = { l: 24, r: 10, t: 12, b: 18 };
-const IW = W - PAD.l - PAD.r;
-const IH = H - PAD.t - PAD.b;
+const DEFAULT_W = 900;
+const H = 150;
+const PAD = { l: 28, r: 12, t: 14, b: 20 };
+
+function fmtPct(p: number | null): string {
+  return p !== null ? `${Math.round(p * 100)}%` : '—';
+}
 
 export function RecommendationList({ recommendations }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [width, setWidth] = useState(DEFAULT_W);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const IW = Math.max(100, width - PAD.l - PAD.r);
+  const IH = H - PAD.t - PAD.b;
+
   const best = useMemo(() =>
     recommendations.reduce((a, b) =>
       (b.success_probability ?? 0) > (a.success_probability ?? 0) ? b : a,
@@ -42,6 +63,28 @@ export function RecommendationList({ recommendations }: Props) {
       r: r,
     }));
 
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || pts.length === 0) return;
+    const scale = width / rect.width;
+    const svgX = (e.clientX - rect.left) * scale;
+    let closest = 0;
+    let closestDist = Infinity;
+    pts.forEach((p, i) => {
+      const dist = Math.abs(p.x - svgX);
+      if (dist < closestDist) { closestDist = dist; closest = i; }
+    });
+    setHoverIdx(closest);
+    setHoverPos({ x: e.clientX, y: e.clientY });
+  }
+
+  function handleMouseLeave() {
+    setHoverIdx(null);
+    setHoverPos(null);
+  }
+
+  const hoverPt = hoverIdx !== null ? pts[hoverIdx] : null;
+
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   const first = pts[0];
   const last  = pts[pts.length - 1];
@@ -56,9 +99,9 @@ export function RecommendationList({ recommendations }: Props) {
   const bestColor = probabilityToColor(best?.success_probability ?? null);
 
   return (
-    <div className="card">
+    <div className="rec-chart" ref={containerRef}>
       <div className="rec-card-header">
-        <span className="rec-card-title">Better departure windows</span>
+        <span className="rec-card-title">Best time to leave</span>
         <span className="rec-pct-label">% Success</span>
       </div>
       {best && (
@@ -72,7 +115,13 @@ export function RecommendationList({ recommendations }: Props) {
         </div>
       )}
 
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+      <svg
+        ref={svgRef}
+        width={width} height={H} viewBox={`0 0 ${width} ${H}`}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        style={{ cursor: 'crosshair' }}
+      >
         <defs>
           <linearGradient id="rec-line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%"   stopColor="#ff2d78" />
@@ -122,8 +171,11 @@ export function RecommendationList({ recommendations }: Props) {
           </>
         )}
 
-        {/* X-axis labels: left edge · best (centre) · right edge */}
-        {first && (
+        {/* X-axis labels: left edge · best (centre) · right edge — the edge
+            label is skipped whenever it lands on the same point as "best"
+            (e.g. the optimal time sits right at the ±60min window edge),
+            since drawing both there would overlap into unreadable text. */}
+        {first && first.r.departure_minute !== best?.departure_minute && (
           <text x={first.x} y={H - 4} textAnchor="start"
             fontFamily="'IBM Plex Mono',monospace" fontSize={8} fill="#9aa1ad">
             {first.r.departure_time}
@@ -135,13 +187,45 @@ export function RecommendationList({ recommendations }: Props) {
             {best?.departure_time}
           </text>
         )}
-        {last && last.r.departure_minute !== first?.r.departure_minute && (
+        {last && last.r.departure_minute !== first?.r.departure_minute
+          && last.r.departure_minute !== best?.departure_minute && (
           <text x={last.x} y={H - 4} textAnchor="end"
             fontFamily="'IBM Plex Mono',monospace" fontSize={8} fill="#9aa1ad">
             {last.r.departure_time}
           </text>
         )}
+
+        {/* Hover crosshair + dot */}
+        {hoverPt && (
+          <g>
+            <line x1={hoverPt.x} x2={hoverPt.x} y1={PAD.t} y2={PAD.t + IH}
+              stroke="#16181d" strokeWidth={1} strokeDasharray="3 2" opacity={0.3} />
+            <circle cx={hoverPt.x} cy={hoverPt.y} r={4}
+              fill="white" stroke={probabilityToColor(hoverPt.r.success_probability)} strokeWidth={2} />
+          </g>
+        )}
       </svg>
+
+      {hoverPt && hoverPos && (
+        <div
+          className="chart-hover-tooltip"
+          style={{ left: hoverPos.x + 14, top: hoverPos.y - 74 }}
+        >
+          <div className="chart-tooltip-title">{hoverPt.r.departure_time} → {hoverPt.r.arrival_time}</div>
+          <div className="chart-tooltip-row">
+            <span>Success</span>
+            <strong>{fmtPct(hoverPt.r.success_probability)}</strong>
+          </div>
+          <div className="chart-tooltip-row">
+            <span>Bike avail.</span>
+            <strong>{fmtPct(hoverPt.r.bike_probability)}</strong>
+          </div>
+          <div className="chart-tooltip-row">
+            <span>Dock avail.</span>
+            <strong>{fmtPct(hoverPt.r.dock_probability)}</strong>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

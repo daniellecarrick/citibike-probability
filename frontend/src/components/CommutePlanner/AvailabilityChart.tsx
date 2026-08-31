@@ -3,7 +3,7 @@
  * station vs. open docks at the destination station, one point per 5-min
  * slot — the raw counts the success probability is built from.
  */
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../../store';
 import type { CommuteAvailabilitySeries, CommuteAvailabilitySlot } from '../../types';
 
@@ -23,6 +23,21 @@ const DOCK_COLOR = '#1fa2ff';
 
 function xScale(minute: number): number {
   return PAD.l + (minute / (DAY_MINUTES - 1)) * IW;
+}
+
+function formatTime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function nearestSlot(slots: CommuteAvailabilitySlot[], minute: number): CommuteAvailabilitySlot | null {
+  if (slots.length === 0) return null;
+  return slots.reduce((closest, slot) =>
+    Math.abs(slot.minute - minute) < Math.abs(closest.minute - minute) ? slot : closest
+  );
 }
 
 function buildLinePath(
@@ -45,14 +60,17 @@ function buildLinePath(
 
 export function AvailabilityChart({ series }: Props) {
   const { selectedTime } = useStore();
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverSlot, setHoverSlot] = useState<CommuteAvailabilitySlot | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
 
-  const { bikePath, dockPath, yTicks, hasData } = useMemo(() => {
+  const { bikePath, dockPath, yTicks, yDomainMax, hasData } = useMemo(() => {
     const values = series.slots
       .flatMap(s => [s.bikes_available, s.docks_available])
       .filter((v): v is number => v !== null);
 
     if (values.length === 0) {
-      return { bikePath: '', dockPath: '', yTicks: [0, 1], hasData: false };
+      return { bikePath: '', dockPath: '', yTicks: [0, 1], yDomainMax: 1, hasData: false };
     }
 
     const maxValue = Math.max(...values);
@@ -63,9 +81,27 @@ export function AvailabilityChart({ series }: Props) {
       bikePath: buildLinePath(series.slots, 'bikes_available', yScale),
       dockPath: buildLinePath(series.slots, 'docks_available', yScale),
       yTicks: [0, Math.round(yDomainMax / 2), yDomainMax],
+      yDomainMax,
       hasData: true,
     };
   }, [series]);
+
+  const yScale = (v: number) => PAD.t + (1 - v / yDomainMax) * IH;
+
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const scale = W / rect.width;
+    const svgX = (e.clientX - rect.left) * scale;
+    const minute = ((svgX - PAD.l) / IW) * (DAY_MINUTES - 1);
+    setHoverSlot(nearestSlot(series.slots, minute));
+    setHoverPos({ x: e.clientX, y: e.clientY });
+  }
+
+  function handleMouseLeave() {
+    setHoverSlot(null);
+    setHoverPos(null);
+  }
 
   const nowX = xScale(selectedTime);
 
@@ -87,7 +123,13 @@ export function AvailabilityChart({ series }: Props) {
       {!hasData ? (
         <div className="availability-chart-empty">Not enough data yet for this day.</div>
       ) : (
-        <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+        <svg
+          ref={svgRef}
+          width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          style={{ cursor: 'crosshair' }}
+        >
           {/* Gridlines + y-axis labels */}
           {yTicks.map(v => {
             const y = PAD.t + (1 - v / yTicks[yTicks.length - 1]) * IH;
@@ -121,7 +163,40 @@ export function AvailabilityChart({ series }: Props) {
               </text>
             );
           })}
+
+          {/* Hover crosshair + value dots */}
+          {hoverSlot && (
+            <g>
+              <line x1={xScale(hoverSlot.minute)} x2={xScale(hoverSlot.minute)} y1={PAD.t} y2={PAD.t + IH}
+                stroke="#16181d" strokeWidth={1} strokeDasharray="3 2" opacity={0.3} />
+              {hoverSlot.bikes_available !== null && (
+                <circle cx={xScale(hoverSlot.minute)} cy={yScale(hoverSlot.bikes_available)} r={4}
+                  fill="white" stroke={BIKE_COLOR} strokeWidth={2} />
+              )}
+              {hoverSlot.docks_available !== null && (
+                <circle cx={xScale(hoverSlot.minute)} cy={yScale(hoverSlot.docks_available)} r={4}
+                  fill="white" stroke={DOCK_COLOR} strokeWidth={2} />
+              )}
+            </g>
+          )}
         </svg>
+      )}
+
+      {hoverSlot && hoverPos && (
+        <div
+          className="chart-hover-tooltip"
+          style={{ left: hoverPos.x + 14, top: hoverPos.y - 64 }}
+        >
+          <div className="chart-tooltip-title">{formatTime(hoverSlot.minute)}</div>
+          <div className="chart-tooltip-row">
+            <span>Bikes</span>
+            <strong>{hoverSlot.bikes_available ?? '—'}</strong>
+          </div>
+          <div className="chart-tooltip-row">
+            <span>Docks</span>
+            <strong>{hoverSlot.docks_available ?? '—'}</strong>
+          </div>
+        </div>
       )}
     </div>
   );
