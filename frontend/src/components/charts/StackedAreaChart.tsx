@@ -12,7 +12,6 @@ interface Layer {
 
 interface Props {
   layers: Layer[];
-  currentSlot?: number;
   width?: number;
   height?: number;
   percentMode?: boolean; // when true, y axis is fixed 0-100 and values are shown as %
@@ -29,7 +28,7 @@ function slotToTime(slot: number): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-export function StackedAreaChart({ layers, currentSlot, width = 340, height = 110, percentMode = false }: Props) {
+export function StackedAreaChart({ layers, width = 340, height = 110, percentMode = false }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverSlot, setHoverSlot] = useState<number | null>(null);
 
@@ -72,7 +71,6 @@ export function StackedAreaChart({ layers, currentSlot, width = 340, height = 11
   }
 
   const yTicks = percentMode ? [0, 50, 100] : [0, Math.round(yDomainMax / 2), yDomainMax];
-  const nowX = currentSlot !== undefined ? xAt(currentSlot) : null;
   const hoverX = hoverSlot !== null ? xAt(hoverSlot) : null;
 
   const TIP_W = 92;
@@ -119,12 +117,6 @@ export function StackedAreaChart({ layers, currentSlot, width = 340, height = 11
         {layers.map((l, i) => (
           <path key={l.label} d={areaPathFor(i)} fill={l.color} fillOpacity={0.75} stroke={l.color} strokeWidth={1} />
         ))}
-
-        {/* Now marker */}
-        {nowX !== null && (
-          <line x1={nowX} x2={nowX} y1={PAD.t} y2={PAD.t + H}
-            stroke="#16181d" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
-        )}
 
         {/* Hover crosshair + tooltip */}
         {hoverX !== null && hoverSlot !== null && (

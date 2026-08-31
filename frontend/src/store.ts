@@ -45,7 +45,7 @@ interface AppState {
   commute: CommutePlan | null;
 
   // UI
-  focusStress: boolean;
+  focusCommute: boolean;
   animation: { playing: boolean };
 
   // Data cache
@@ -60,7 +60,7 @@ interface AppState {
   setMapMode: (mode: MapMode) => void;
   selectStation: (id: string | null) => void;
   setCommute: (plan: CommutePlan | null) => void;
-  setFocusStress: (v: boolean) => void;
+  setFocusCommute: (v: boolean) => void;
   setPlaying: (playing: boolean) => void;
   setCurrentMapData: (data: StationProbability[]) => void;
   setBulkCache: (key: string, data: BulkMapData) => void;
@@ -85,7 +85,7 @@ export const useStore = create<AppState>((set, get) => ({
   mapMode: 'stations',
   selectedStationId: null,
   commute: null,
-  focusStress: false,
+  focusCommute: false,
   animation: { playing: false },
   currentMapData: [],
   bulkCache: {},
@@ -97,7 +97,7 @@ export const useStore = create<AppState>((set, get) => ({
   setMapMode: (mode) => set({ mapMode: mode }),
   selectStation: (id) => set({ selectedStationId: id }),
   setCommute: (plan) => set({ commute: plan }),
-  setFocusStress: (v) => set({ focusStress: v }),
+  setFocusCommute: (v) => set({ focusCommute: v }),
   setPlaying: (playing) => set((s) => ({ animation: { ...s.animation, playing } })),
   setCurrentMapData: (data) => set({ currentMapData: data }),
   setBulkCache: (key, data) => set((s) => ({ bulkCache: { ...s.bulkCache, [key]: data } })),

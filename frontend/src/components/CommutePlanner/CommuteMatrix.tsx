@@ -1,9 +1,11 @@
 /**
  * Day × time-of-day heatmap of commute success probability. Click a cell to
- * set the global day/time (driving the forecast-card + RecommendationList
- * below); the cell nearest the current day/time is outlined.
+ * set the global day/time (driving RecommendationList below); the cell
+ * nearest the current day/time is outlined. Fills the width of its
+ * container — GRID_W is measured, not fixed, so more time buckets (finer
+ * granularity) still fit the full page width instead of shrinking the SVG.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../store';
 import { probabilityToColor } from '../../utils/colorScale';
 import { DAYS_FULL } from '../../utils/time';
@@ -17,7 +19,7 @@ const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const PAD = { t: 8, r: 8, b: 20, l: 34 };
 const ROW_H = 20;
-const GRID_W = 432;
+const DEFAULT_GRID_W = 900; // used only before the container is first measured
 
 function formatTime(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -79,11 +81,25 @@ export function CommuteMatrix({ matrix }: Props) {
   const { selectedDay, selectedTime, setDay, setTime } = useStore();
   const [hover, setHover] = useState<{ day: number; bucketIdx: number } | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(DEFAULT_GRID_W + PAD.l + PAD.r);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setContainerWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const bucketsPerDay = matrix.days[0]?.buckets.length ?? 48;
-  const cellW = GRID_W / bucketsPerDay;
+  const gridW = Math.max(200, containerWidth - PAD.l - PAD.r);
+  const cellW = gridW / bucketsPerDay;
   const gridH = ROW_H * matrix.days.length;
-  const width = PAD.l + GRID_W + PAD.r;
+  const width = PAD.l + gridW + PAD.r;
   const height = PAD.t + gridH + PAD.b;
 
   const selectedBucketIdx = Math.floor(selectedTime / matrix.bucket_minutes);
@@ -95,7 +111,7 @@ export function CommuteMatrix({ matrix }: Props) {
   const context = useMemo(() => contextSentence(matrix), [matrix]);
 
   return (
-    <div className="commute-matrix">
+    <div className="commute-matrix" ref={containerRef}>
       <div className="card-title">Probability of a successful commute by hour and day</div>
       {context && <div className="matrix-context">{context}</div>}
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>

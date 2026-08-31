@@ -3,29 +3,24 @@ import { useCommute } from '../../hooks/useCommute';
 import { useCommuteMatrix } from '../../hooks/useCommuteMatrix';
 import { useCommuteAvailabilitySeries } from '../../hooks/useCommuteAvailabilitySeries';
 import { useStore } from '../../store';
-import { probabilityToColor, fmtPct } from '../../utils/colorScale';
+import { probabilityToColor } from '../../utils/colorScale';
 import { filterStations } from '../../utils/stationSearch';
 import { DAYS_FULL, formatTime } from '../../utils/time';
 import { AvailabilityChart } from './AvailabilityChart';
 import { CommuteMatrix } from './CommuteMatrix';
-import { TimeStepper } from '../Controls/TimeStepper';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 import type { SavedCommute } from '../../hooks/useSavedCommutes';
 import type { DayOfWeek, Station } from '../../types';
 
 type SavedItem = SavedCommute & { kind: 'starred' | 'recent' };
 
-const FORECAST_DAYS: { letter: string; full: string; value: DayOfWeek }[] = [
-  { letter: 'S', full: 'Sunday',    value: 6 },
-  { letter: 'M', full: 'Monday',    value: 0 },
-  { letter: 'T', full: 'Tuesday',   value: 1 },
-  { letter: 'W', full: 'Wednesday', value: 2 },
-  { letter: 'T', full: 'Thursday',  value: 3 },
-  { letter: 'F', full: 'Friday',    value: 4 },
-  { letter: 'S', full: 'Saturday',  value: 5 },
-];
+const DAY_OPTIONS = DAYS_FULL.map((full, i) => ({ value: String(i), label: full }));
 
-const FORECAST_TIME_STEP = 15;
+// Every 15 minutes across the day, matching the old time stepper's granularity.
+const TIME_OPTIONS = Array.from({ length: 96 }, (_, i) => {
+  const minutes = i * 15;
+  return { value: String(minutes), label: formatTime(minutes) };
+});
 
 const SAMPLE_COMMUTES = [
   {
@@ -64,19 +59,30 @@ function neighborhoodLabel(
   return `${origin?.neighborhood ?? fallbackOrigin} to ${dest?.neighborhood ?? fallbackDest}`;
 }
 
-function reliabilityLabel(p: number | null): string {
-  if (p === null) return '';
-  if (p >= 0.85) return 'High reliability';
-  if (p >= 0.65) return 'Moderate reliability';
-  return 'Low reliability';
-}
-
-function forecastSentence(p: number | null): string {
-  if (p === null) return 'Not enough data to forecast.';
-  if (p >= 0.85) return 'You can count on this commute most days.';
-  if (p >= 0.65) return 'Usually works out, but have a backup plan.';
-  if (p >= 0.40) return 'Roughly a coin flip — consider leaving a bit earlier.';
-  return 'Risky. Bikes or docks are often unavailable at this time.';
+/** Plain-text-styled dropdown, for inline use inside a headline sentence. */
+function InlineSelect({
+  value, options, onChange, ariaLabel,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <span className="headline-select-wrap">
+      <select
+        className="headline-select"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        aria-label={ariaLabel}
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <span className="headline-select-caret" aria-hidden="true">▾</span>
+    </span>
+  );
 }
 
 /** Searchable station dropdown */
@@ -358,80 +364,37 @@ export function CommutePlanner({ stations }: Props) {
 
       {/* Results: forecast + day×time heatmap fill the row together */}
       {commute && (
-        <div className="results-grid">
-          {loading && <div className="loading">Calculating forecast…</div>}
-
+        <>
           {hasCommute && result && (
-            <div className="card forecast-card">
-              <div className="forecast-header">
-                <div className="card-title">Your commute forecast</div>
-                <div className="forecast-lede">
-                  If you leave <strong>{DAYS_FULL[selectedDay]}</strong> at <strong>{formatTime(selectedTime)}</strong>, your
-                  chance of a successful commute is{' '}
-                  <strong style={{ color: pColor }}>{p !== null ? `${Math.round(p * 100)}%` : '—'}</strong>.
-                </div>
-                <div className="forecast-picker-row">
-                  <div className="day-pills-track">
-                    {FORECAST_DAYS.map(d => (
-                      <button
-                        key={d.value}
-                        className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
-                        title={d.full}
-                        onClick={() => setDay(d.value)}
-                      >
-                        {d.letter}
-                      </button>
-                    ))}
-                  </div>
-                  <TimeStepper minutes={selectedTime} onChange={setTime} step={FORECAST_TIME_STEP} />
-                </div>
-              </div>
-
-              <div className="forecast-hero">
-                <div className="big-stat-row">
-                  <span className="big-stat-number" style={{ color: pColor }}>
-                    {p !== null ? Math.round(p * 100) : '—'}
-                  </span>
-                  <span className="big-stat-pct" style={{ color: pColor }}>%</span>
-                </div>
-                <div
-                  className="reliability-badge"
-                  style={{ background: `${pColor}20`, color: pColor, marginBottom: 8 }}
-                >
-                  {reliabilityLabel(p)}
-                </div>
-                <div className="forecast-sentence">{forecastSentence(p)}</div>
-              </div>
-
-              <div className="substat-strip">
-                <div className="substat">
-                  <div className="substat-value" style={{ color: probabilityToColor(result.bike_probability) }}>
-                    {fmtPct(result.bike_probability)}
-                  </div>
-                  <div className="substat-label">Bike avail.</div>
-                </div>
-                <div className="substat">
-                  <div className="substat-value" style={{ color: probabilityToColor(result.dock_probability) }}>
-                    {fmtPct(result.dock_probability)}
-                  </div>
-                  <div className="substat-label">Dock avail.</div>
-                </div>
-                <div className="substat">
-                  <div className="substat-value" style={{ color: '#16181d' }}>
-                    {result.travel_minutes}
-                  </div>
-                  <div className="substat-label">min ride</div>
-                </div>
-              </div>
-
-              <div className="tip-row">
-                💡 Departs {result.departure_time} · arrives ~{result.arrival_time}
-              </div>
+            <div className="forecast-headline">
+              <div className="forecast-headline-eyebrow">Your commute forecast</div>
+              <h1 className="forecast-headline-title">
+                If you leave{' '}
+                <InlineSelect
+                  value={String(selectedDay)}
+                  options={DAY_OPTIONS}
+                  onChange={v => setDay(Number(v) as DayOfWeek)}
+                  ariaLabel="Day of week"
+                />{' '}
+                at{' '}
+                <span style={{ whiteSpace: 'nowrap' }}>
+                  <InlineSelect
+                    value={String(selectedTime)}
+                    options={TIME_OPTIONS}
+                    onChange={v => setTime(Number(v))}
+                    ariaLabel="Time of day"
+                  />,
+                </span>{' '}
+                your chance of a successful commute is{' '}
+                <span style={{ color: pColor }}>{p !== null ? `${Math.round(p * 100)}%` : '—'}</span>.
+              </h1>
             </div>
           )}
 
+          {loading && <div className="loading">Calculating forecast…</div>}
+
           {matrix && <CommuteMatrix matrix={matrix} />}
-        </div>
+        </>
       )}
 
       {/* Absolute bike/dock availability across the day */}

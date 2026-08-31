@@ -25,20 +25,6 @@ export interface StationProbability {
   stress_score: number | null;
 }
 
-export interface ProbabilityResult {
-  probability: number | null;
-  sample_count: number;
-  metric: Metric;
-}
-
-export interface StressResult {
-  stress_score: number | null;
-  threshold: number;
-  low_count: number;
-  sample_count: number;
-  metric: Metric;
-}
-
 export interface HistogramBucket {
   label: string;
   count: number;
@@ -57,13 +43,6 @@ export interface StabilityMetrics {
   p75: number | null;
   p90: number | null;
   histogram: HistogramBucket[];
-}
-
-export interface StationDetail extends Station {
-  probabilities: Record<Metric, ProbabilityResult>;
-  stress_scores: Record<Metric, StressResult>;
-  distributions: Record<Metric, StabilityMetrics>;
-  nearby_stations: Array<Station & { dist_sq: number }>;
 }
 
 export interface CommuteResult {

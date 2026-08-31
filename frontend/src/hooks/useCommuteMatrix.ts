@@ -16,7 +16,7 @@ export function useCommuteMatrix() {
   useEffect(() => {
     if (!commute || !commute.originId || !commute.destId) { setMatrix(null); return; }
     setLoading(true);
-    api.commute.matrix(commute.originId, commute.destId)
+    api.commute.matrix(commute.originId, commute.destId, 15)
       .then(setMatrix)
       .catch(console.error)
       .finally(() => setLoading(false));

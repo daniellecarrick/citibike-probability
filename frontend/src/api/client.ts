@@ -10,7 +10,6 @@ import type {
   Metric,
   Recommendation,
   Station,
-  StationDetail,
   StationProbability,
 } from '../types';
 
@@ -31,8 +30,6 @@ export const api = {
   stations: {
     list: () => get<Station[]>('/api/stations'),
     get: (id: string) => get<Station>(`/api/stations/${id}`),
-    detail: (id: string, day: DayOfWeek, time: number) =>
-      get<StationDetail>(`/api/stations/${id}/detail`, { day, time }),
   },
 
   map: {

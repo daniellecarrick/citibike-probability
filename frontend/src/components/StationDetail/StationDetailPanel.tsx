@@ -1,13 +1,51 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { ProbabilityRibbon } from '../charts/ProbabilityRibbon';
 import { StackedAreaChart } from '../charts/StackedAreaChart';
-import { useStationDetail } from '../../hooks/useStationDetail';
+import { useStationInfo } from '../../hooks/useStationInfo';
 import { useStore, METRIC_TO_API } from '../../store';
-import { probabilityToColor } from '../../utils/colorScale';
+import { probabilityToColor, fmtPct } from '../../utils/colorScale';
 import { api } from '../../api/client';
-import type { BulkMapData } from '../../types';
+import { COMMUTE_WINDOWS, averageInWindow, formatTime } from '../../utils/time';
+import type { BulkMapData, DayOfWeek } from '../../types';
 
 const SCALE_DOTS = [0, 0.5, 1].map(v => probabilityToColor(v));
+const [AM_WINDOW, PM_WINDOW] = COMMUTE_WINDOWS;
+
+// "Probability by hour" always summarizes Mon–Fri, independent of whatever
+// single day is selected in the map's day picker.
+const WEEKDAYS: DayOfWeek[] = [0, 1, 2, 3, 4];
+
+// Weighted (by sample_count) average of a station's per-slot probability
+// across several day-bulk responses — pools Mon–Fri into one series instead
+// of just picking a single day.
+function weekdayAverageProbability(
+  caches: (BulkMapData | undefined)[],
+  stationId: string | null,
+): (number | null)[] {
+  const idxs = caches.map(c => (stationId ? c?.station_ids.indexOf(stationId) ?? -1 : -1));
+  return Array.from({ length: 288 }, (_, slot) => {
+    let sum = 0;
+    let count = 0;
+    caches.forEach((cached, i) => {
+      const idx = idxs[i];
+      if (!cached || idx === -1) return;
+      const s = cached.slots[String(slot)];
+      const c = s?.sample_count[idx] ?? 0;
+      const p = s?.probability[idx];
+      if (c > 0 && p !== null && p !== undefined) { sum += p * c; count += c; }
+    });
+    return count > 0 ? sum / count : null;
+  });
+}
+
+function commuteEase(score: number | null): { label: string; color: string } {
+  const color = probabilityToColor(score);
+  if (score === null) return { label: 'Unknown', color: '#bbb' };
+  if (score < 0.2)  return { label: 'Difficult', color };
+  if (score < 0.45) return { label: 'Tough',      color };
+  if (score < 0.7)  return { label: 'Doable',     color };
+  return              { label: 'Easy',       color };
+}
 
 // /api/map/bulk is columnar (station_ids + parallel per-slot arrays, see
 // types.ts) rather than one record per station per slot — look a station's
@@ -22,30 +60,44 @@ function bulkSeries(
   return Array.from({ length: 288 }, (_, slot) => cached.slots[String(slot)]?.[field][idx] ?? null);
 }
 
-function statusLabel(prob: number | null): { label: string; color: string } {
-  const color = probabilityToColor(prob);
-  if (prob === null) return { label: '—', color: '#bbb' };
-  if (prob < 0.2)  return { label: 'Unlikely', color };
-  if (prob < 0.45) return { label: 'Maybe',    color };
-  if (prob < 0.7)  return { label: 'Good',     color };
-  return              { label: 'Great',    color };
-}
-
 export function StationDetailPanel() {
   const {
     selectedStationId,
-    selectedTime, selectedDay, selectedMetric, focusStress, setFocusStress,
+    selectedDay, selectedMetric, focusCommute, setFocusCommute,
     bulkCache, setBulkCache,
   } = useStore();
 
-  const cacheKey = `${selectedDay}_${METRIC_TO_API[selectedMetric]}`;
+  // "Probability by hour" pools Mon–Fri regardless of the map's selected
+  // day, so it fetches its own set of weekday bulk responses rather than
+  // reusing the single-day cache entry the map itself relies on.
+  const metricApi = METRIC_TO_API[selectedMetric] as 'bikes' | 'ebikes' | 'docks';
+  useEffect(() => {
+    for (const d of WEEKDAYS) {
+      const key = `${d}_${metricApi}`;
+      if (!bulkCache[key]) {
+        api.map.bulk(d, metricApi).then(data => setBulkCache(key, data)).catch(console.error);
+      }
+      const dockKey = `${d}_docks`;
+      if (!bulkCache[dockKey]) {
+        api.map.bulk(d, 'docks').then(data => setBulkCache(dockKey, data)).catch(console.error);
+      }
+    }
+  }, [metricApi, bulkCache, setBulkCache]);
+
   const hourValues = useMemo<(number | null)[]>(
-    () => bulkSeries(bulkCache[cacheKey], selectedStationId, 'probability'),
-    [bulkCache, cacheKey, selectedStationId],
+    () => weekdayAverageProbability(WEEKDAYS.map(d => bulkCache[`${d}_${metricApi}`]), selectedStationId),
+    [bulkCache, metricApi, selectedStationId],
   );
 
-  // Dock availability is fetched independently of the map's selected metric,
-  // since a visitor viewing "bike" chances still wants to see dock chances.
+  // Dock availability is computed independently of the map's selected
+  // metric, since a visitor viewing "bike" chances still wants dock chances.
+  const dockHourValues = useMemo<(number | null)[]>(
+    () => weekdayAverageProbability(WEEKDAYS.map(d => bulkCache[`${d}_docks`]), selectedStationId),
+    [bulkCache, selectedStationId],
+  );
+
+  // The "Bikes & docks by hour" chart below still follows the map's
+  // selected day, so it fetches (and reuses) that single day's dock bulk.
   const dockCacheKey = `${selectedDay}_docks`;
   useEffect(() => {
     if (bulkCache[dockCacheKey]) return;
@@ -53,11 +105,6 @@ export function StationDetailPanel() {
       .then(data => setBulkCache(dockCacheKey, data))
       .catch(console.error);
   }, [dockCacheKey, selectedDay, bulkCache, setBulkCache]);
-
-  const dockHourValues = useMemo<(number | null)[]>(
-    () => bulkSeries(bulkCache[dockCacheKey], selectedStationId, 'probability'),
-    [bulkCache, dockCacheKey, selectedStationId],
-  );
 
   // Classic + e-bike mean counts, stacked, for the "number of bikes" area chart.
   const classicCacheKey = `${selectedDay}_classic`;
@@ -110,16 +157,16 @@ export function StationDetailPanel() {
     return [classic, ebike, dock];
   }, [classicCountValues, ebikeCountValues, dockCountValues]);
 
-  const { detail, loading } = useStationDetail();
-  const stressRef = useRef<HTMLDivElement>(null);
+  const { info, loading } = useStationInfo(selectedStationId);
+  const commuteRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (focusStress && stressRef.current) {
-      stressRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const timer = setTimeout(() => setFocusStress(false), 2000);
+    if (focusCommute && commuteRef.current) {
+      commuteRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const timer = setTimeout(() => setFocusCommute(false), 2000);
       return () => clearTimeout(timer);
     }
-  }, [focusStress, setFocusStress]);
+  }, [focusCommute, setFocusCommute]);
 
   if (!selectedStationId) {
     return (
@@ -138,61 +185,54 @@ export function StationDetailPanel() {
   }
 
   if (loading) return <div className="loading">Loading station data…</div>;
-  if (!detail) return <div className="loading">Station not found.</div>;
+  if (!info) return <div className="loading">Station not found.</div>;
 
-  const bikeProb   = detail.probabilities.bikes.probability;
-  const bikeStress = detail.stress_scores.bikes.stress_score;
+  const amBike = averageInWindow(hourValues, AM_WINDOW);
+  const amDock = averageInWindow(dockHourValues, AM_WINDOW);
+  const pmBike = averageInWindow(hourValues, PM_WINDOW);
+  const pmDock = averageInWindow(dockHourValues, PM_WINDOW);
 
-  const activeProb = bikeProb;
-  const status     = statusLabel(activeProb);
-
-  const stressHigh  = bikeStress !== null && bikeStress >= 42;
+  const commuteScores = [amBike, amDock, pmBike, pmDock].filter((v): v is number => v !== null);
+  const overallScore = commuteScores.length > 0
+    ? commuteScores.reduce((a, b) => a + b, 0) / commuteScores.length
+    : null;
+  const ease = commuteEase(overallScore);
 
   return (
     <div style={{ animation: 'slideIn .32s cubic-bezier(.22,1,.36,1)' }}>
       {/* Sticky header */}
       <div className="station-sticky-header">
         <div className="station-hood-eyebrow">
-          Capacity: {detail.capacity ?? '—'} · {detail.distributions.bikes.sample_count} observations
+          Capacity: {info.capacity ?? '—'}
         </div>
 
         <div className="station-header-row">
-          <div className="station-name">{detail.station_name}</div>
+          <div className="station-name">{info.station_name}</div>
           <div
             className="station-status-badge"
             style={{
-              color: status.color,
-              background: `${status.color}18`,
-              border: `1px solid ${status.color}44`,
+              color: ease.color,
+              background: `${ease.color}18`,
+              border: `1px solid ${ease.color}44`,
             }}
           >
-            {status.label}
+            {ease.label}
           </div>
         </div>
-
-        {/* <div className="station-time-line">
-          {formatTime(selectedTime)} · {DAY_NAMES[selectedDay]}
-        </div> */}
       </div>
 
-      {/* 1. Forecast / stress section */}
-      <div className="detail-section" ref={stressRef}>
+      {/* 1. Commute summary */}
+      <div className="detail-section" ref={commuteRef}>
         <div
-          className={`stress-section${focusStress ? ' focus-stress' : ''}`}
+          className={`commute-section${focusCommute ? ' focus-commute' : ''}`}
         >
-          <div className="stress-headline">
-            {bikeProb !== null ? `${Math.round(bikeProb * 100)}% chance of a bike` : '—'}
-            {bikeProb !== null && bikeProb > 0.5 &&
-             detail.distributions.bikes.median !== null && detail.distributions.bikes.median < 3
-              ? ` — but typically only ${detail.distributions.bikes.median.toFixed(1)} on hand`
-              : ''}
+          <div className="commute-headline">
+            {overallScore === null ? 'Not enough data for peak commute times' : `${ease.label} for the daily commute`}
           </div>
-          <div className="stress-body" style={{ marginTop: 8, color: '#6c727e' }}>
-            {bikeProb === null || bikeProb < 0.2
-              ? "Bikes are rarely available at this time."
-              : stressHigh
-                ? "There's almost always a bike here — but inventory runs thin, frequently just 1–2 when you arrive."
-                : "Inventory here is comfortably deep. You're unlikely to be the last one."}
+          <div className="commute-body" style={{ marginTop: 8, color: '#6c727e' }}>
+            {AM_WINDOW.label} ({formatTime(AM_WINDOW.startSlot * 5)}–{formatTime(AM_WINDOW.endSlot * 5)}): {fmtPct(amBike)} chance of a bike, {fmtPct(amDock)} chance of a dock.
+            <br />
+            {PM_WINDOW.label} ({formatTime(PM_WINDOW.startSlot * 5)}–{formatTime(PM_WINDOW.endSlot * 5)}): {fmtPct(pmBike)} chance of a bike, {fmtPct(pmDock)} chance of a dock.
           </div>
         </div>
       </div>
@@ -205,12 +245,11 @@ export function StationDetailPanel() {
             { label: 'BIKE', values: hourValues },
             { label: 'DOCK', values: dockHourValues },
           ]}
-          currentSlot={Math.floor(selectedTime / 5)}
           width={412}
         />
       </div>
 
-      {/* 4. Share of bikes vs. docks by hour, stacked by type */}
+      {/* 3. Share of bikes vs. docks by hour, stacked by type */}
       <div className="detail-section">
         <div className="detail-section-title">Bikes &amp; docks by hour</div>
         <StackedAreaChart
@@ -219,17 +258,10 @@ export function StationDetailPanel() {
             { label: 'E-bike', color: '#2d5aff', values: ebikeSharePct },
             { label: 'Docks', color: '#aaaaaa', values: dockSharePct },
           ]}
-          currentSlot={Math.floor(selectedTime / 5)}
           width={412}
           percentMode
         />
       </div>
-
-      {/* 5. Historical availability histogram */}
-      {/* <div className="detail-section">
-        <div className="detail-section-title">Historical availability</div>
-        <BarHistogram histogram={activeDist.histogram} />
-      </div> */}
     </div>
   );
 }
