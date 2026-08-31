@@ -148,7 +148,7 @@ h1 {
   transition: color .15s, border-color .15s;
 }
 .header-tab:hover { color: var(--ink); }
-.header-tab.active { border-bottom-color: var(--text-strong); }
+.header-tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
 
 /* Pill groups (day pills, mode toggle) — one shared style so both
    controls always match in height, spacing, and appearance. */
