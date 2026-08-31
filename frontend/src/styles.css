@@ -344,7 +344,7 @@ h1 {
 
 /* ─── Left Rail ─────────────────────────────────────────────────── */
 .left-rail {
-  width: 408px;
+  width: 480px;
   flex-shrink: 0;
   background: var(--rail-bg);
   border-right: 1px solid var(--card-border);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { HourLineChart } from '../charts/HourLineChart';
+import { ProbabilityRibbon } from '../charts/ProbabilityRibbon';
 import { StackedAreaChart } from '../charts/StackedAreaChart';
 import { useStationDetail } from '../../hooks/useStationDetail';
 import { useStore, METRIC_TO_API } from '../../store';
@@ -16,10 +16,10 @@ function bulkSeries(
   cached: BulkMapData | undefined,
   stationId: string | null,
   field: 'probability' | 'mean_inventory',
-): number[] {
+): (number | null)[] {
   const idx = stationId ? cached?.station_ids.indexOf(stationId) ?? -1 : -1;
-  if (!cached || idx === -1) return Array(288).fill(0);
-  return Array.from({ length: 288 }, (_, slot) => cached.slots[String(slot)]?.[field][idx] ?? 0);
+  if (!cached || idx === -1) return Array(288).fill(null);
+  return Array.from({ length: 288 }, (_, slot) => cached.slots[String(slot)]?.[field][idx] ?? null);
 }
 
 function statusLabel(prob: number | null): { label: string; color: string } {
@@ -39,7 +39,7 @@ export function StationDetailPanel() {
   } = useStore();
 
   const cacheKey = `${selectedDay}_${METRIC_TO_API[selectedMetric]}`;
-  const hourValues = useMemo<number[]>(
+  const hourValues = useMemo<(number | null)[]>(
     () => bulkSeries(bulkCache[cacheKey], selectedStationId, 'probability'),
     [bulkCache, cacheKey, selectedStationId],
   );
@@ -54,7 +54,7 @@ export function StationDetailPanel() {
       .catch(console.error);
   }, [dockCacheKey, selectedDay, bulkCache, setBulkCache]);
 
-  const dockHourValues = useMemo<number[]>(
+  const dockHourValues = useMemo<(number | null)[]>(
     () => bulkSeries(bulkCache[dockCacheKey], selectedStationId, 'probability'),
     [bulkCache, dockCacheKey, selectedStationId],
   );
@@ -75,18 +75,18 @@ export function StationDetailPanel() {
     }
   }, [classicCacheKey, ebikeCacheKey, selectedDay, bulkCache, setBulkCache]);
 
-  const classicCountValues = useMemo<number[]>(
+  const classicCountValues = useMemo<(number | null)[]>(
     () => bulkSeries(bulkCache[classicCacheKey], selectedStationId, 'mean_inventory'),
     [bulkCache, classicCacheKey, selectedStationId],
   );
 
-  const ebikeCountValues = useMemo<number[]>(
+  const ebikeCountValues = useMemo<(number | null)[]>(
     () => bulkSeries(bulkCache[ebikeCacheKey], selectedStationId, 'mean_inventory'),
     [bulkCache, ebikeCacheKey, selectedStationId],
   );
 
   // Dock counts reuse the bulk data already fetched for the dock probability chart above.
-  const dockCountValues = useMemo<number[]>(
+  const dockCountValues = useMemo<(number | null)[]>(
     () => bulkSeries(bulkCache[dockCacheKey], selectedStationId, 'mean_inventory'),
     [bulkCache, dockCacheKey, selectedStationId],
   );
@@ -197,24 +197,16 @@ export function StationDetailPanel() {
         </div>
       </div>
 
-      {/* 2. Probability by hour */}
+      {/* 2. Probability of an available bike / dock by hour */}
       <div className="detail-section">
-        <div className="detail-section-title">Probability of an available bike</div>
-        <HourLineChart
-          values={hourValues}
+        <div className="detail-section-title">Probability by hour</div>
+        <ProbabilityRibbon
+          rows={[
+            { label: 'BIKE', values: hourValues },
+            { label: 'DOCK', values: dockHourValues },
+          ]}
           currentSlot={Math.floor(selectedTime / 5)}
-          width={340}
-        />
-      </div>
-
-      {/* 3. Probability of finding a dock by hour */}
-      <div className="detail-section">
-        <div className="detail-section-title">Probability of an available dock</div>
-        <HourLineChart
-          values={dockHourValues}
-          currentSlot={Math.floor(selectedTime / 5)}
-          width={340}
-          gradientId="hlc-grad-dock"
+          width={412}
         />
       </div>
 
@@ -228,7 +220,7 @@ export function StationDetailPanel() {
             { label: 'Docks', color: '#aaaaaa', values: dockSharePct },
           ]}
           currentSlot={Math.floor(selectedTime / 5)}
-          width={340}
+          width={412}
           percentMode
         />
       </div>
