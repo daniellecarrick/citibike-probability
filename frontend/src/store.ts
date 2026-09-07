@@ -5,6 +5,12 @@ export type Metric = 'bike' | 'ebike' | 'dock' | 'reliability' | 'stress' | 'ful
 export type MapMode = 'stations' | 'surface';
 export type BikeType = 'any' | 'classic' | 'ebike';
 
+/** Commute API only distinguishes "e-bikes only" from "any bike type" —
+ * collapses the legacy 'classic' option (kept for old saved commutes) into 'any'. */
+export function toApiBikeType(bikeType: BikeType): 'any' | 'ebike' {
+  return bikeType === 'ebike' ? 'ebike' : 'any';
+}
+
 /** Map frontend metric keys to backend API param values. */
 export const METRIC_TO_API: Record<Metric, string> = {
   bike:        'bikes',
@@ -72,7 +78,7 @@ function getCurrentDayTime(): { day: DayOfWeek; minutes: number } {
   const now = new Date();
   // JS getDay(): 0=Sun,1=Mon...6=Sat. Frontend uses 0=Mon...6=Sun. Convert:
   const day = ((now.getDay() + 6) % 7) as DayOfWeek;
-  const minutes = Math.floor((now.getHours() * 60 + now.getMinutes()) / 5) * 5;
+  const minutes = Math.floor((now.getHours() * 60 + now.getMinutes()) / 15) * 15;
   return { day, minutes };
 }
 

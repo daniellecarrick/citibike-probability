@@ -44,12 +44,53 @@ def _get_station(conn: sqlite3.Connection, station_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def _station_has_data(conn: sqlite3.Connection, station_id: str) -> bool:
+    """
+    False if the station has zero rows anywhere in station_slot_rollup — i.e.
+    it has been missing from the live GBFS feed for longer than the rollup's
+    lookback window (collector/rollup.py's DEFAULT_LOOKBACK_DAYS), so every
+    snapshot it ever had has aged out. This is different from an ordinary
+    sparse-data gap at one time slot: it means the station has stopped
+    reporting entirely (decommissioned, renamed to a new station_id, or
+    temporarily pulled from service), so every probability for it will come
+    back None. Checked up front so callers can surface a clear reason instead
+    of a bare "no data" the user has to guess at.
+    """
+    row = conn.execute(
+        "SELECT EXISTS(SELECT 1 FROM station_slot_rollup WHERE station_id = ?)",
+        (station_id,),
+    ).fetchone()
+    return bool(row[0])
+
+
+def _data_warning(
+    origin: dict, origin_has_data: bool, dest: dict, dest_has_data: bool
+) -> Optional[str]:
+    """Human-readable heads-up when one or both stations have no data at all,
+    so a null/empty result reads as "this station stopped reporting" rather
+    than looking like a bug."""
+    missing = [s["station_name"] for s, has_data in ((origin, origin_has_data), (dest, dest_has_data)) if not has_data]
+    if not missing:
+        return None
+    stations = " and ".join(missing)
+    verb = "haven't" if len(missing) > 1 else "hasn't"
+    return f"{stations} {verb} reported availability data recently, so this estimate may be incomplete."
+
+
+def _bike_metric(bike_type: str) -> str:
+    """Maps the UI's bike-type filter to a rollup metric: "ebike" narrows the
+    origin-side availability check to e-bikes only, everything else ("any")
+    uses the combined bikes count (classic + e-bike)."""
+    return "ebikes" if bike_type == "ebike" else "bikes"
+
+
 def get_commute_success(
     conn: sqlite3.Connection,
     origin_id: str,
     dest_id: str,
     day_of_week: int,
     departure_minute: int,
+    bike_type: str = "any",
 ) -> dict:
     """
     departure_minute: minutes since midnight (e.g., 495 = 8:15 AM)
@@ -66,7 +107,7 @@ def get_commute_success(
     )
     arrival_minute = (departure_minute + travel_minutes) % (24 * 60)
 
-    bike_result = get_availability_probability(conn, origin_id, day_of_week, departure_minute, "bikes")
+    bike_result = get_availability_probability(conn, origin_id, day_of_week, departure_minute, _bike_metric(bike_type))
     dock_result = get_availability_probability(conn, dest_id, day_of_week, arrival_minute, "docks")
 
     p_bike = bike_result["probability"]
@@ -92,7 +133,31 @@ def get_commute_success(
         "success_probability": p_success,
         "bike_sample_count": bike_result["sample_count"],
         "dock_sample_count": dock_result["sample_count"],
+        "data_warning": _data_warning(
+            origin, _station_has_data(conn, origin_id), dest, _station_has_data(conn, dest_id)
+        ),
     }
+
+
+# The two daily commute periods. Recommendations sweep whichever one the
+# requested departure time falls in (or is closest to), rather than a fixed
+# window around the requested time, so "best time to leave" reflects the
+# whole rush rather than just the hour either side of what was picked.
+MORNING_COMMUTE_WINDOW = (6 * 60, 10 * 60)   # 06:00–10:00
+EVENING_COMMUTE_WINDOW = (16 * 60, 20 * 60)  # 16:00–20:00
+
+
+def _nearest_commute_window(departure_minute: int) -> tuple[int, int]:
+    def distance(window: tuple[int, int]) -> int:
+        start, end = window
+        if start <= departure_minute <= end:
+            return 0
+        return min(abs(departure_minute - start), abs(departure_minute - end))
+
+    return min(
+        (MORNING_COMMUTE_WINDOW, EVENING_COMMUTE_WINDOW),
+        key=distance,
+    )
 
 
 def get_recommendations(
@@ -101,12 +166,14 @@ def get_recommendations(
     dest_id: str,
     day_of_week: int,
     departure_minute: int,
-    window_minutes: int = 60,
-    step_minutes: int = 5,
+    step_minutes: int = 10,
+    bike_type: str = "any",
 ) -> list[dict]:
     """
-    Sweep departure times ±window_minutes around the requested time and return
-    all points so the frontend can render a smooth 2-hour probability curve.
+    Sweep departure times across the morning or evening commute window
+    (whichever the requested time falls in, or is nearest to) and return all
+    points so the frontend can render a smooth probability curve across the
+    whole rush.
     """
     origin = _get_station(conn, origin_id)
     dest = _get_station(conn, dest_id)
@@ -117,16 +184,14 @@ def get_recommendations(
         origin["lat"], origin["lng"], dest["lat"], dest["lng"]
     )
 
+    window_start, window_end = _nearest_commute_window(departure_minute)
+
     scores: list[dict] = []
-    for dep in range(
-        departure_minute - window_minutes,
-        departure_minute + window_minutes + step_minutes,
-        step_minutes,
-    ):
+    for dep in range(window_start, window_end + step_minutes, step_minutes):
         dep_clamped = dep % (24 * 60)
         arr = (dep_clamped + travel_minutes) % (24 * 60)
 
-        bike = get_availability_probability(conn, origin_id, day_of_week, dep_clamped, "bikes")
+        bike = get_availability_probability(conn, origin_id, day_of_week, dep_clamped, _bike_metric(bike_type))
         dock = get_availability_probability(conn, dest_id, day_of_week, arr, "docks")
 
         p_bike = bike["probability"]
@@ -169,6 +234,7 @@ def get_commute_matrix(
     dest_id: str,
     bucket_minutes: int = 30,
     window_minutes: int = 15,
+    bike_type: str = "any",
 ) -> dict:
     """
     Commute success probability broken out by every day of week × time-of-day
@@ -195,8 +261,9 @@ def get_commute_matrix(
     )
     buckets_per_day = (24 * 60) // bucket_minutes
 
+    bike_metric = _bike_metric(bike_type)
     use_rollup = rollup.rollup_available(conn)
-    origin_week = rollup.fetch_station_all_days_slot_data(conn, origin_id, "bikes") if use_rollup else {}
+    origin_week = rollup.fetch_station_all_days_slot_data(conn, origin_id, bike_metric) if use_rollup else {}
     dest_week = rollup.fetch_station_all_days_slot_data(conn, dest_id, "docks") if use_rollup else {}
 
     days: list[dict] = []
@@ -215,7 +282,7 @@ def get_commute_matrix(
                 p_dock = (dock_avail / dock_total) if dock_total > 0 else None
                 sample_count = min(bike_total, dock_total)
             else:
-                bike = get_availability_probability(conn, origin_id, day, departure_minute, "bikes", window_minutes)
+                bike = get_availability_probability(conn, origin_id, day, departure_minute, bike_metric, window_minutes)
                 dock = get_availability_probability(conn, dest_id, arrival_day, arrival_minute, "docks", window_minutes)
                 p_bike = bike["probability"]
                 p_dock = dock["probability"]
@@ -241,6 +308,9 @@ def get_commute_matrix(
         "travel_minutes": travel_minutes,
         "bucket_minutes": bucket_minutes,
         "days": days,
+        "data_warning": _data_warning(
+            origin, _station_has_data(conn, origin_id), dest, _station_has_data(conn, dest_id)
+        ),
     }
 
 
@@ -249,6 +319,7 @@ def get_commute_availability_series(
     origin_id: str,
     dest_id: str,
     day_of_week: int,
+    bike_type: str = "any",
 ) -> dict:
     """
     288 five-minute-slot series for one day, pairing the origin's mean
@@ -261,10 +332,11 @@ def get_commute_availability_series(
     if not origin or not dest:
         return {"error": "Station not found"}
 
+    bike_metric = _bike_metric(bike_type)
     slots: list[dict] = []
 
     if rollup.rollup_available(conn):
-        origin_day = rollup.fetch_station_all_days_slot_data(conn, origin_id, "bikes").get(day_of_week, {})
+        origin_day = rollup.fetch_station_all_days_slot_data(conn, origin_id, bike_metric).get(day_of_week, {})
         dest_day = rollup.fetch_station_all_days_slot_data(conn, dest_id, "docks").get(day_of_week, {})
         for raw_slot in range(288):
             o_total, _, o_sum = origin_day.get(raw_slot, (0, 0, 0.0))
@@ -280,7 +352,7 @@ def get_commute_availability_series(
         # runs in production once the collector's first rebuild has landed.
         for raw_slot in range(288):
             minute = raw_slot * 5
-            bike = get_availability_probability(conn, origin_id, day_of_week, minute, "bikes", window_minutes=5)
+            bike = get_availability_probability(conn, origin_id, day_of_week, minute, bike_metric, window_minutes=5)
             dock = get_availability_probability(conn, dest_id, day_of_week, minute, "docks", window_minutes=5)
             slots.append({
                 "minute": minute,
@@ -293,4 +365,7 @@ def get_commute_availability_series(
         "destination": {"id": dest_id, "name": dest["station_name"]},
         "day_of_week": day_of_week,
         "slots": slots,
+        "data_warning": _data_warning(
+            origin, _station_has_data(conn, origin_id), dest, _station_has_data(conn, dest_id)
+        ),
     }

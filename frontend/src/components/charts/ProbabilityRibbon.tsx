@@ -19,7 +19,7 @@ interface Props {
   rowHeight?: number;
 }
 
-const AXIS_H = 28;
+const AXIS_H = 6;
 const BOTTOM_H = 14;
 const WINDOW_GAP = 20;
 const SLOTS_PER_HOUR = 12;
@@ -97,15 +97,9 @@ export function ProbabilityRibbon({
       onMouseLeave={() => setHover(null)}
       style={{ cursor: 'crosshair' }}
     >
-      {/* Per-window title + hour ticks */}
+      {/* Per-window hour ticks */}
       {windows.map(w => (
         <g key={w.key}>
-          <text
-            x={w.x0 + windowW / 2} y={12} textAnchor="middle"
-            fontFamily="'IBM Plex Mono', monospace" fontSize={9} fontWeight={600} fill="#6c727e"
-          >
-            {w.label}
-          </text>
           {Array.from({ length: w.slots / SLOTS_PER_HOUR + 1 }, (_, hi) => {
             const hourSlot = hi * SLOTS_PER_HOUR;
             const x = xAt(w, hourSlot);

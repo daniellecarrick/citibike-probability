@@ -38,13 +38,13 @@ function weekdayAverageProbability(
   });
 }
 
-function commuteEase(score: number | null): { label: string; color: string } {
+function commuteEase(score: number | null): { label: string; color: string; detail: string } {
   const color = probabilityToColor(score);
-  if (score === null) return { label: 'Unknown', color: '#bbb' };
-  if (score < 0.2)  return { label: 'Difficult', color };
-  if (score < 0.45) return { label: 'Tough',      color };
-  if (score < 0.7)  return { label: 'Doable',     color };
-  return              { label: 'Easy',       color };
+  if (score === null) return { label: 'Unknown', color: '#bbb', detail: 'Not enough recent data to estimate bike and dock availability here.' };
+  if (score < 0.2)  return { label: 'Difficult', color, detail: 'Bikes or docks are frequently unavailable during peak hours — plan a backup.' };
+  if (score < 0.45) return { label: 'Tough',      color, detail: 'Availability is inconsistent during peak hours — expect occasional waits.' };
+  if (score < 0.7)  return { label: 'Doable',     color, detail: 'Bikes and docks are usually available during peak hours, with some risk.' };
+  return              { label: 'Easy',       color, detail: 'Bikes and docks are reliably available during peak hours.' };
 }
 
 // /api/map/bulk is columnar (station_ids + parallel per-slot arrays, see
@@ -229,27 +229,32 @@ export function StationDetailPanel() {
           <div className="commute-headline">
             {overallScore === null ? 'Not enough data for peak commute times' : `${ease.label} for the daily commute`}
           </div>
-          <div className="commute-body" style={{ marginTop: 8, color: '#6c727e' }}>
-            {AM_WINDOW.label} ({formatTime(AM_WINDOW.startSlot * 5)}–{formatTime(AM_WINDOW.endSlot * 5)}): {fmtPct(amBike)} chance of a bike, {fmtPct(amDock)} chance of a dock.
-            <br />
-            {PM_WINDOW.label} ({formatTime(PM_WINDOW.startSlot * 5)}–{formatTime(PM_WINDOW.endSlot * 5)}): {fmtPct(pmBike)} chance of a bike, {fmtPct(pmDock)} chance of a dock.
+          <div className="commute-subheadline">{ease.detail}</div>
+          <div className="commute-window-annotations">
+            <div className="commute-window-block">
+              <div className="commute-window-heading">
+                {AM_WINDOW.label} <span className="commute-window-range">({formatTime(AM_WINDOW.startSlot * 5)}–{formatTime(AM_WINDOW.endSlot * 5)})</span>
+              </div>
+              <div className="commute-body">{fmtPct(amBike)} chance of a bike, {fmtPct(amDock)} chance of a dock.</div>
+            </div>
+            <div className="commute-window-block">
+              <div className="commute-window-heading">
+                {PM_WINDOW.label} <span className="commute-window-range">({formatTime(PM_WINDOW.startSlot * 5)}–{formatTime(PM_WINDOW.endSlot * 5)})</span>
+              </div>
+              <div className="commute-body">{fmtPct(pmBike)} chance of a bike, {fmtPct(pmDock)} chance of a dock.</div>
+            </div>
           </div>
+          <ProbabilityRibbon
+            rows={[
+              { label: 'BIKE', values: hourValues },
+              { label: 'DOCK', values: dockHourValues },
+            ]}
+            width={412}
+          />
         </div>
       </div>
 
-      {/* 2. Probability of an available bike / dock by hour */}
-      <div className="detail-section">
-        <div className="detail-section-title">Probability by hour</div>
-        <ProbabilityRibbon
-          rows={[
-            { label: 'BIKE', values: hourValues },
-            { label: 'DOCK', values: dockHourValues },
-          ]}
-          width={412}
-        />
-      </div>
-
-      {/* 3. Share of bikes vs. docks by hour, stacked by type */}
+      {/* 2. Share of bikes vs. docks by hour, stacked by type */}
       <div className="detail-section">
         <div className="detail-section-title">Bikes &amp; docks by hour</div>
         <StackedAreaChart

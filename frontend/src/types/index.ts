@@ -57,6 +57,7 @@ export interface CommuteResult {
   success_probability: number | null;
   bike_sample_count: number;
   dock_sample_count: number;
+  data_warning: string | null;
 }
 
 export interface Recommendation {
@@ -89,6 +90,7 @@ export interface CommuteMatrixResponse {
   travel_minutes: number;
   bucket_minutes: number;
   days: CommuteMatrixDay[];
+  data_warning: string | null;
 }
 
 export interface CommuteAvailabilitySlot {
@@ -102,6 +104,7 @@ export interface CommuteAvailabilitySeries {
   destination: { id: string; name: string };
   day_of_week: DayOfWeek;
   slots: CommuteAvailabilitySlot[];
+  data_warning: string | null;
 }
 
 // Columnar per-slot data from /api/map/bulk — each array is positionally

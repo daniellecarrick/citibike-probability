@@ -9,6 +9,7 @@ import type { CommuteAvailabilitySeries, CommuteAvailabilitySlot } from '../../t
 
 interface Props {
   series: CommuteAvailabilitySeries;
+  bikeLabel: string;
 }
 
 const W = 700;
@@ -58,7 +59,7 @@ function buildLinePath(
   return d.trim();
 }
 
-export function AvailabilityChart({ series }: Props) {
+export function AvailabilityChart({ series, bikeLabel }: Props) {
   const { selectedTime } = useStore();
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverSlot, setHoverSlot] = useState<CommuteAvailabilitySlot | null>(null);
@@ -112,7 +113,7 @@ export function AvailabilityChart({ series }: Props) {
       <div className="availability-chart-legend">
         <span className="availability-legend-item">
           <span className="availability-legend-dot" style={{ background: BIKE_COLOR }} />
-          Bikes at {series.origin.name}
+          {bikeLabel} at {series.origin.name}
         </span>
         <span className="availability-legend-item">
           <span className="availability-legend-dot" style={{ background: DOCK_COLOR }} />
@@ -189,12 +190,12 @@ export function AvailabilityChart({ series }: Props) {
         >
           <div className="chart-tooltip-title">{formatTime(hoverSlot.minute)}</div>
           <div className="chart-tooltip-row">
-            <span>Bikes</span>
-            <strong>{hoverSlot.bikes_available ?? '—'}</strong>
+            <span>{bikeLabel}</span>
+            <strong>{hoverSlot.bikes_available !== null ? Math.round(hoverSlot.bikes_available) : '—'}</strong>
           </div>
           <div className="chart-tooltip-row">
             <span>Docks</span>
-            <strong>{hoverSlot.docks_available ?? '—'}</strong>
+            <strong>{hoverSlot.docks_available !== null ? Math.round(hoverSlot.docks_available) : '—'}</strong>
           </div>
         </div>
       )}

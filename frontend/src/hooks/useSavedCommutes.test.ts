@@ -7,8 +7,10 @@ function makeCommute(overrides?: Partial<SavedCommute>): SavedCommute {
   return {
     originId: 'origin-1',
     originName: 'Central Park',
+    originNeighborhood: 'Midtown',
     destId: 'dest-1',
     destName: 'Grand Central',
+    destNeighborhood: 'Murray Hill',
     bikeType: 'any',
     savedAt: Date.now(),
     ...overrides,

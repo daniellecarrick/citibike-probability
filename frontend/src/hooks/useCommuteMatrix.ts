@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { useStore } from '../store';
+import { toApiBikeType, useStore } from '../store';
 import type { CommuteMatrixResponse } from '../types';
 
 /**
@@ -8,7 +8,7 @@ import type { CommuteMatrixResponse } from '../types';
  * pair. Deliberately not keyed on selectedDay/selectedTime — the matrix is
  * what lets the user pick those, not something driven by them.
  */
-export function useCommuteMatrix() {
+export function useCommuteMatrix(bucketMinutes = 15) {
   const { commute } = useStore();
   const [matrix, setMatrix] = useState<CommuteMatrixResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -16,11 +16,11 @@ export function useCommuteMatrix() {
   useEffect(() => {
     if (!commute || !commute.originId || !commute.destId) { setMatrix(null); return; }
     setLoading(true);
-    api.commute.matrix(commute.originId, commute.destId, 15)
+    api.commute.matrix(commute.originId, commute.destId, bucketMinutes, toApiBikeType(commute.bikeType))
       .then(setMatrix)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [commute?.originId, commute?.destId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [commute?.originId, commute?.destId, commute?.bikeType, bucketMinutes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { matrix, loading };
 }
