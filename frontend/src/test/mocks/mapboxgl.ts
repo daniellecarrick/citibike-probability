@@ -7,6 +7,7 @@ export const mockAddSource = vi.fn();
 export const mockAddLayer = vi.fn();
 export const mockGetCanvas = vi.fn(() => ({ style: { cursor: '' } }));
 export const mockFlyTo = vi.fn();
+export const mockFitBounds = vi.fn();
 export const mockRemove = vi.fn();
 export const mockIsStyleLoaded = vi.fn(() => true);
 
@@ -42,6 +43,7 @@ export const mockMapInstance = {
   setLayoutProperty: mockSetLayoutProperty,
   getCanvas: mockGetCanvas,
   flyTo: mockFlyTo,
+  fitBounds: mockFitBounds,
   remove: mockRemove,
   isStyleLoaded: mockIsStyleLoaded,
 };
@@ -49,7 +51,9 @@ export const mockMapInstance = {
 const MapboxMock = {
   Map: vi.fn(() => mockMapInstance),
   accessToken: '',
-  LngLatBounds: vi.fn(),
+  LngLatBounds: vi.fn(function LngLatBoundsMock() {
+    return { extend: vi.fn() };
+  }),
   Popup: vi.fn(() => ({
     setLngLat: vi.fn().mockReturnThis(),
     setHTML: vi.fn().mockReturnThis(),

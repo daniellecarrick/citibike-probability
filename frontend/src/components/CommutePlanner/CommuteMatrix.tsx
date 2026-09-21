@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../store';
 import { probabilityToColor } from '../../utils/colorScale';
-import { DAYS_FULL } from '../../utils/time';
+import { DAYS_FULL, COMMUTE_WINDOWS } from '../../utils/time';
 import type { CommuteMatrixResponse } from '../../types';
 
 interface Props {
@@ -21,9 +21,9 @@ const PAD = { t: 22, r: 8, b: 20, l: 34 };
 const ROW_H = 20;
 const DEFAULT_GRID_W = 900; // used only before the container is first measured
 
-// Mirrors MORNING_COMMUTE_WINDOW / EVENING_COMMUTE_WINDOW in backend/analytics/commute.py
-const MORNING_WINDOW: [number, number] = [6 * 60, 10 * 60];
-const EVENING_WINDOW: [number, number] = [16 * 60, 20 * 60];
+const [AM_WINDOW, PM_WINDOW] = COMMUTE_WINDOWS;
+const MORNING_WINDOW: [number, number] = [AM_WINDOW.startSlot * 5, AM_WINDOW.endSlot * 5];
+const EVENING_WINDOW: [number, number] = [PM_WINDOW.startSlot * 5, PM_WINDOW.endSlot * 5];
 
 function formatTime(minutes: number): string {
   const h = Math.floor(minutes / 60);

@@ -8,8 +8,11 @@ export function formatTime(minutes: number): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-/** Morning/evening peak windows, shared by the station-detail commute
- * summary and the probability ribbon chart so both stay in sync. */
+/** Morning/evening peak windows — the single source of truth for every
+ * commute-window visual on the site (station-detail summary + ribbon on the
+ * map page, and the matrix/window-bar charts on the commute planner page).
+ * Mirrors MORNING_COMMUTE_WINDOW / EVENING_COMMUTE_WINDOW in
+ * backend/analytics/commute.py — keep both in sync if either changes. */
 export interface CommuteWindow {
   key: 'am' | 'pm';
   label: string;
@@ -18,8 +21,8 @@ export interface CommuteWindow {
 }
 
 export const COMMUTE_WINDOWS: CommuteWindow[] = [
-  { key: 'am', label: 'AM commute', startSlot: 7 * 12, endSlot: 9 * 12 },   // 7am–9am
-  { key: 'pm', label: 'PM commute', startSlot: 17 * 12, endSlot: 19 * 12 }, // 5pm–7pm
+  { key: 'am', label: 'AM commute', startSlot: 6 * 12, endSlot: 10 * 12 },  // 6am–10am
+  { key: 'pm', label: 'PM commute', startSlot: 16 * 12, endSlot: 20 * 12 }, // 4pm–8pm
 ];
 
 /** Mean of the non-null values in a 5-min-slot series over a commute window. */

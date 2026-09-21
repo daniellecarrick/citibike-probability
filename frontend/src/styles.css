@@ -389,6 +389,40 @@ h1 {
 }
 .map-region > div:first-child { width: 100%; height: 100%; }
 
+/* ─── Commute mini maps (5 nearest stations) ───────────────────── */
+.commute-minimap-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.commute-minimap-card {
+  flex: 1;
+  min-width: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.commute-minimap-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  border-bottom: 1px solid var(--card-border);
+}
+.commute-minimap-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.commute-minimap-canvas {
+  width: 100%;
+  height: 180px;
+}
+
 /* ─── Cards ─────────────────────────────────────────────────────── */
 .card {
   background: var(--card-bg);
@@ -872,7 +906,8 @@ h1 {
 }
 .commute-window-range {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 11px;
+  display: block;
   font-weight: 400;
   color: var(--text-faint);
 }
@@ -1090,11 +1125,11 @@ h1 {
 }
 .detail-section-title {
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
   letter-spacing: 0.08em;
-  color: var(--text-faint);
+  /* color: var(--text-faint); */
   margin-bottom: 12px;
 }
 
@@ -1119,19 +1154,14 @@ h1 {
   border: 1px solid transparent;
 }
 .commute-headline { font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.5; margin-bottom: 2px; }
-.commute-subheadline { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; }
-/* Aligned above the ProbabilityRibbon's two commute windows (labelWidth 40,
-   right pad 8, gap 20 — see ProbabilityRibbon.tsx) so each block reads as a
-   caption for the ribbon segment below it. */
-.commute-window-annotations {
-  display: flex;
-  gap: 20px;
-  padding: 0 8px 8px 40px;
-}
-.commute-window-block { flex: 1; min-width: 0; }
+.commute-subheadline { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px; }
+.commute-window-block { width: 100%; }
+.commute-window-block + .commute-window-block { margin-top: 18px; }
 .commute-window-heading { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.4; }
-.commute-window-range { font-weight: 400; color: var(--text-faint); }
+.commute-window-heading .commute-window-range { font-weight: 400; color: var(--text-faint); }
 .commute-body { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-top: 2px; }
+.commute-ribbon { width: 100%; margin-top: 8px; }
+.commute-ribbon svg { display: block; width: 100%; height: auto; }
 .focus-commute { border-color: currentColor !important; }
 
 /* Nearby stations */
@@ -1405,8 +1435,23 @@ h1 {
   font-size: 11px;
   color: var(--text-muted);
 }
-.route-bar-edit {
+.route-bar-switch {
   margin-left: auto;
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-sm);
+  background: none;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: all .15s;
+}
+.route-bar-switch:hover { background: var(--control-track); color: var(--ink); }
+.route-bar-edit {
   border: 1px solid var(--card-border);
   border-radius: var(--r-sm);
   background: none;

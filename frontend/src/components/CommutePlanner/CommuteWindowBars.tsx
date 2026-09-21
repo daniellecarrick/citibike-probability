@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import type { CommuteMatrixBucket, CommuteMatrixResponse } from '../../types';
 import { probabilityToColor, fmtPct } from '../../utils/colorScale';
+import { COMMUTE_WINDOWS } from '../../utils/time';
 
 interface Props {
   matrix: CommuteMatrixResponse;
@@ -16,10 +17,10 @@ interface Props {
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-// Mirrors MORNING_COMMUTE_WINDOW / EVENING_COMMUTE_WINDOW in backend/analytics/commute.py
+const [AM_WINDOW, PM_WINDOW] = COMMUTE_WINDOWS;
 const WINDOWS: { title: string; range: [number, number] }[] = [
-  { title: 'Morning commute', range: [6 * 60, 10 * 60] },
-  { title: 'Evening commute', range: [16 * 60, 20 * 60] },
+  { title: 'Morning commute', range: [AM_WINDOW.startSlot * 5, AM_WINDOW.endSlot * 5] },
+  { title: 'Evening commute', range: [PM_WINDOW.startSlot * 5, PM_WINDOW.endSlot * 5] },
 ];
 
 // Low success reads as red, high success reads as blue.

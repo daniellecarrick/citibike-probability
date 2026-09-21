@@ -11,6 +11,7 @@ from typing import Optional
 
 from analytics import rollup
 from analytics.probability import DEFAULT_LOOKBACK_DAYS, EPOCH_MONDAY_OFFSET, METRIC_COLUMN, SECONDS_PER_DAY, SECONDS_PER_WEEK, Metric, _since
+from local_time import LOCAL_TS
 
 DEFAULT_THRESHOLDS: dict[str, int] = {
     "bikes": 3,
@@ -69,8 +70,8 @@ def get_stress_score(
         FROM station_snapshots
         WHERE station_id = ?
           AND timestamp >= ?
-          AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
-          AND (timestamp % {SECONDS_PER_DAY}) BETWEEN ? AND ?
+          AND ({LOCAL_TS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+          AND ({LOCAL_TS} % {SECONDS_PER_DAY}) BETWEEN ? AND ?
         """,
         (threshold, station_id, since, dow_start, dow_end, tod_start, tod_end),
     ).fetchone()
@@ -128,8 +129,8 @@ def get_all_stations_stress(
             SUM(CASE WHEN {col} < ? THEN 1 ELSE 0 END) AS low_count
         FROM station_snapshots
         WHERE timestamp >= ?
-          AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
-          AND (timestamp % {SECONDS_PER_DAY}) BETWEEN ? AND ?
+          AND ({LOCAL_TS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+          AND ({LOCAL_TS} % {SECONDS_PER_DAY}) BETWEEN ? AND ?
         GROUP BY station_id
         """,
         (threshold, since, dow_start, dow_end, tod_start, tod_end),

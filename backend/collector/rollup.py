@@ -28,6 +28,7 @@ no dependency on the read-side analytics package.
 import logging
 import sqlite3
 import time
+from local_time import LOCAL_TS
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +39,9 @@ DEFAULT_LOOKBACK_DAYS = 90
 
 # Must match analytics/stress.py DEFAULT_THRESHOLDS
 LOW_THRESHOLDS = {"bikes": 3, "classic": 2, "ebikes": 2, "docks": 3}
+
+# Must match analytics/probability.py's AVAILABILITY_THRESHOLD.
+AVAILABILITY_THRESHOLD = 2
 
 METRIC_COLUMN = {
     "bikes": "available_bikes",
@@ -61,7 +65,7 @@ _metric_select_lines = []
 _insert_columns = ["station_id", "day_of_week", "raw_slot", "total"]
 for _metric, _col in METRIC_COLUMN.items():
     _metric_select_lines.append(
-        f"SUM(CASE WHEN {_col} >= 1 THEN 1 ELSE 0 END) AS {_metric}_avail"
+        f"SUM(CASE WHEN {_col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END) AS {_metric}_avail"
     )
     _metric_select_lines.append(
         f"SUM(CASE WHEN {_col} < {LOW_THRESHOLDS[_metric]} THEN 1 ELSE 0 END) AS {_metric}_low"
@@ -79,9 +83,9 @@ for _metric, _col in METRIC_COLUMN.items():
 REBUILD_QUERY = f"""
     SELECT
         station_id,
-        CAST((CAST((timestamp % {SECONDS_PER_WEEK}) AS INTEGER) / {SECONDS_PER_DAY} + 3) % 7 AS INTEGER)
+        CAST((CAST(({LOCAL_TS} % {SECONDS_PER_WEEK}) AS INTEGER) / {SECONDS_PER_DAY} + 3) % 7 AS INTEGER)
             AS day_of_week,
-        CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
+        CAST(({LOCAL_TS} % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
         COUNT(*) AS total,
         {','.join(_metric_select_lines)}
     FROM station_snapshots
@@ -124,7 +128,7 @@ def _delta_query(sign: int) -> str:
     that's aged out."""
     lines = []
     for metric, col in METRIC_COLUMN.items():
-        lines.append(f"{sign} * SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END) AS {metric}_avail")
+        lines.append(f"{sign} * SUM(CASE WHEN {col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END) AS {metric}_avail")
         lines.append(f"{sign} * SUM(CASE WHEN {col} < {LOW_THRESHOLDS[metric]} THEN 1 ELSE 0 END) AS {metric}_low")
         lines.append(f"{sign} * SUM(CAST({col} AS REAL)) AS {metric}_sum")
         for suffix, cond in HISTOGRAM_BUCKETS:
@@ -133,9 +137,9 @@ def _delta_query(sign: int) -> str:
     return f"""
         SELECT
             station_id,
-            CAST((CAST((timestamp % {SECONDS_PER_WEEK}) AS INTEGER) / {SECONDS_PER_DAY} + 3) % 7 AS INTEGER)
+            CAST((CAST(({LOCAL_TS} % {SECONDS_PER_WEEK}) AS INTEGER) / {SECONDS_PER_DAY} + 3) % 7 AS INTEGER)
                 AS day_of_week,
-            CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
+            CAST(({LOCAL_TS} % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
             {sign} * COUNT(*) AS total,
             {','.join(lines)}
         FROM station_snapshots

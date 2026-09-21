@@ -11,7 +11,7 @@ import sqlite3
 
 import pytest
 
-from collector.rollup import INSERT_ROW, REBUILD_QUERY, incremental_update
+from collector.rollup import AVAILABILITY_THRESHOLD, INSERT_ROW, REBUILD_QUERY, incremental_update
 
 SCHEMA = """
 CREATE TABLE station_snapshots (
@@ -121,6 +121,38 @@ def test_incremental_matches_full_rebuild_after_one_step(conn):
     ground_truth = _dump_rollup(conn)
 
     assert incremental_result == ground_truth
+
+
+def test_avail_column_requires_availability_threshold(conn):
+    """A lone unit (count=1) must not count toward `{metric}_avail` — both
+    the full-rebuild and incremental-delta SQL are independent, so each is
+    checked directly rather than relying on their cross-check above."""
+    assert AVAILABILITY_THRESHOLD == 2
+    t0 = 10 * WINDOW
+
+    # One snapshot with exactly 1 bike, one with exactly 2 — expect
+    # bikes_avail == 1 (only the count=2 row clears the threshold).
+    conn.execute(
+        "INSERT INTO station_snapshots (timestamp, station_id, available_bikes, "
+        "available_classic_bikes, available_ebikes, available_docks) VALUES (?,?,?,?,?,?)",
+        (t0 - 10, "S1", 1, 1, 0, 5),
+    )
+    conn.execute(
+        "INSERT INTO station_snapshots (timestamp, station_id, available_bikes, "
+        "available_classic_bikes, available_ebikes, available_docks) VALUES (?,?,?,?,?,?)",
+        (t0, "S1", 2, 2, 0, 5),
+    )
+    conn.commit()
+
+    _full_rebuild_at(conn, since=t0 - WINDOW)
+    rebuilt = _dump_rollup(conn)
+    assert sum(r["bikes_avail"] for r in rebuilt.values()) == 1
+
+    conn.execute("DELETE FROM station_slot_rollup")
+    conn.commit()
+    incremental_update(conn, last_update_ts=t0 - WINDOW, now_ts=t0 + 1, lookback_days=LOOKBACK_DAYS)
+    via_incremental = _dump_rollup(conn)
+    assert sum(r["bikes_avail"] for r in via_incremental.values()) == 1
 
 
 def test_incremental_over_several_steps_matches_full_rebuild(conn):

@@ -8,6 +8,7 @@ import { filterStations } from '../../utils/stationSearch';
 import { DAYS_FULL, formatTime } from '../../utils/time';
 import { AvailabilityChart } from './AvailabilityChart';
 import { CommuteMatrix } from './CommuteMatrix';
+import { CommuteMiniMap } from './CommuteMiniMap';
 import { CommuteWindowBars } from './CommuteWindowBars';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 import type { SavedCommute } from '../../hooks/useSavedCommutes';
@@ -21,6 +22,9 @@ import cityBlockImg from '../../images/city_block.png';
 type SavedItem = SavedCommute & { kind: 'starred' | 'recent' };
 
 const DAY_OPTIONS = DAYS_FULL.map((full, i) => ({ value: String(i), label: full }));
+
+// Hidden 2026-09-07: user wasn't happy with how the mini maps looked.
+const SHOW_MINIMAPS = false;
 
 // Every 15 minutes across the day, matching the old time stepper's granularity.
 const TIME_OPTIONS = Array.from({ length: 96 }, (_, i) => {
@@ -503,6 +507,24 @@ export function CommutePlanner({ stations }: Props) {
           )}
 
           {loading && <div className="loading">Calculating forecast…</div>}
+
+          {/* TODO: mini maps hidden 2026-09-07, user wasn't happy with how they looked. Flip to re-enable. */}
+          {SHOW_MINIMAPS && (
+            <div className="commute-minimap-row">
+              <CommuteMiniMap
+                label="Near your origin"
+                dotColor="#16181d"
+                station={stations.find(s => s.station_id === commute.originId)}
+                stations={stations}
+              />
+              <CommuteMiniMap
+                label="Near your destination"
+                dotColor={probabilityToColor(0.95)}
+                station={stations.find(s => s.station_id === commute.destId)}
+                stations={stations}
+              />
+            </div>
+          )}
 
           {matrix && <CommuteMatrix matrix={matrix} />}
 

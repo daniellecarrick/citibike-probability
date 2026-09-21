@@ -230,27 +230,40 @@ export function StationDetailPanel() {
             {overallScore === null ? 'Not enough data for peak commute times' : `${ease.label} for the daily commute`}
           </div>
           <div className="commute-subheadline">{ease.detail}</div>
-          <div className="commute-window-annotations">
-            <div className="commute-window-block">
-              <div className="commute-window-heading">
-                {AM_WINDOW.label} <span className="commute-window-range">({formatTime(AM_WINDOW.startSlot * 5)}–{formatTime(AM_WINDOW.endSlot * 5)})</span>
-              </div>
-              <div className="commute-body">{fmtPct(amBike)} chance of a bike, {fmtPct(amDock)} chance of a dock.</div>
+
+          <div className="commute-window-block">
+            <div className="commute-window-heading">
+              {AM_WINDOW.label} <span className="commute-window-range">{formatTime(AM_WINDOW.startSlot * 5)}–{formatTime(AM_WINDOW.endSlot * 5)}</span>
             </div>
-            <div className="commute-window-block">
-              <div className="commute-window-heading">
-                {PM_WINDOW.label} <span className="commute-window-range">({formatTime(PM_WINDOW.startSlot * 5)}–{formatTime(PM_WINDOW.endSlot * 5)})</span>
-              </div>
-              <div className="commute-body">{fmtPct(pmBike)} chance of a bike, {fmtPct(pmDock)} chance of a dock.</div>
+            <div className="commute-body">{fmtPct(amBike)} chance of a bike, {fmtPct(amDock)} chance of a dock.</div>
+            <div className="commute-ribbon">
+              <ProbabilityRibbon
+                window={AM_WINDOW}
+                rows={[
+                  { label: 'BIKE', values: hourValues },
+                  { label: 'DOCK', values: dockHourValues },
+                ]}
+                width={412}
+              />
             </div>
           </div>
-          <ProbabilityRibbon
-            rows={[
-              { label: 'BIKE', values: hourValues },
-              { label: 'DOCK', values: dockHourValues },
-            ]}
-            width={412}
-          />
+
+          <div className="commute-window-block">
+            <div className="commute-window-heading">
+              {PM_WINDOW.label} <span className="commute-window-range">{formatTime(PM_WINDOW.startSlot * 5)}–{formatTime(PM_WINDOW.endSlot * 5)}</span>
+            </div>
+            <div className="commute-body">{fmtPct(pmBike)} chance of a bike, {fmtPct(pmDock)} chance of a dock.</div>
+            <div className="commute-ribbon">
+              <ProbabilityRibbon
+                window={PM_WINDOW}
+                rows={[
+                  { label: 'BIKE', values: hourValues },
+                  { label: 'DOCK', values: dockHourValues },
+                ]}
+                width={412}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

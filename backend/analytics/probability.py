@@ -9,7 +9,9 @@ All queries include a lookback window (default 90 days) so that mock seeded
 data is naturally phased out as real collected data covers the same period.
 After 90 days of live collection, only real data is used.
 
-The SQL uses (timestamp % 604800) to extract seconds-into-week.
+Days and times are New York local time, not UTC: SQL first shifts the UTC
+timestamp by the offset in effect at that instant (local_time.LOCAL_TS,
+DST-aware), then uses (local % 604800) to extract seconds-into-week.
 Python's datetime epoch (Jan 1, 1970) was a Thursday, so:
   Monday offset = 4 * 86400 = 345600
 """
@@ -19,6 +21,7 @@ from typing import Literal
 
 from analytics import rollup
 from analytics.stale_cache import StaleWhileRevalidateCache
+from local_time import LOCAL_TS, LOCAL_TS_SS
 
 Metric = Literal["bikes", "classic", "ebikes", "docks"]
 
@@ -33,6 +36,13 @@ METRIC_COLUMN: dict[str, str] = {
     "ebikes": "available_ebikes",
     "docks": "available_docks",
 }
+
+# A snapshot counts as "available" for a metric only once it has at least
+# this many units — one lone bike/dock isn't a reliable enough outcome to
+# call 100%. Applies uniformly to all four metrics. Mirrored in
+# backend/collector/rollup.py (which intentionally doesn't import this
+# package) — keep both in sync if this changes.
+AVAILABILITY_THRESHOLD = 2
 
 
 def _since(lookback_days: int) -> int:
@@ -63,8 +73,9 @@ def get_availability_probability(
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
 ) -> dict:
     """
-    Probability that `metric` >= 1 for the given station, day, and time.
-    Only considers snapshots within the lookback window.
+    Probability that `metric` >= AVAILABILITY_THRESHOLD for the given
+    station, day, and time. Only considers snapshots within the lookback
+    window.
 
     Reads the pre-aggregated rollup table when it's available (fast, indexed)
     and falls back to scanning station_snapshots directly otherwise (fresh
@@ -91,15 +102,15 @@ def get_availability_probability(
             f"""
             SELECT
                 COUNT(*) AS total,
-                SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END) AS avail_count,
+                SUM(CASE WHEN {col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END) AS avail_count,
                 AVG({col}) AS mean_inventory
             FROM station_snapshots
             WHERE station_id = ?
               AND timestamp >= ?
-              AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+              AND ({LOCAL_TS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
               AND (
-                  (timestamp % {SECONDS_PER_DAY}) >= ?
-                  OR (timestamp % {SECONDS_PER_DAY}) <= ?
+                  ({LOCAL_TS} % {SECONDS_PER_DAY}) >= ?
+                  OR ({LOCAL_TS} % {SECONDS_PER_DAY}) <= ?
               )
             """,
             (station_id, since, dow_start, dow_end, tod_start + SECONDS_PER_DAY, tod_end),
@@ -111,13 +122,13 @@ def get_availability_probability(
             f"""
             SELECT
                 COUNT(*) AS total,
-                SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END) AS avail_count,
+                SUM(CASE WHEN {col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END) AS avail_count,
                 AVG({col}) AS mean_inventory
             FROM station_snapshots
             WHERE station_id = ?
               AND timestamp >= ?
-              AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
-              AND (timestamp % {SECONDS_PER_DAY}) BETWEEN ? AND ?
+              AND ({LOCAL_TS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+              AND ({LOCAL_TS} % {SECONDS_PER_DAY}) BETWEEN ? AND ?
             """,
             (station_id, since, dow_start, dow_end, tod_start_clamp, tod_end_clamp),
         ).fetchone()
@@ -174,12 +185,12 @@ def get_all_stations_probability(
     if tod_start < 0:
         time_filter = f"""
             (
-              (ss.timestamp % {SECONDS_PER_DAY}) >= {tod_start + SECONDS_PER_DAY}
-              OR (ss.timestamp % {SECONDS_PER_DAY}) <= {tod_end}
+              ({LOCAL_TS_SS} % {SECONDS_PER_DAY}) >= {tod_start + SECONDS_PER_DAY}
+              OR ({LOCAL_TS_SS} % {SECONDS_PER_DAY}) <= {tod_end}
             )
         """
     else:
-        time_filter = f"(ss.timestamp % {SECONDS_PER_DAY}) BETWEEN {tod_start_clamp} AND {tod_end_clamp}"
+        time_filter = f"({LOCAL_TS_SS} % {SECONDS_PER_DAY}) BETWEEN {tod_start_clamp} AND {tod_end_clamp}"
 
     rows = conn.execute(
         f"""
@@ -190,13 +201,13 @@ def get_all_stations_probability(
             st.lng,
             st.capacity,
             COUNT(ss.id)                                     AS total,
-            SUM(CASE WHEN ss.{col} >= 1 THEN 1 ELSE 0 END)  AS avail_count,
+            SUM(CASE WHEN ss.{col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END)  AS avail_count,
             AVG(CAST(ss.{col} AS REAL))                      AS mean_inventory
         FROM stations st
         LEFT JOIN station_snapshots ss
             ON ss.station_id = st.station_id
            AND ss.timestamp >= ?
-           AND (ss.timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+           AND ({LOCAL_TS_SS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
            AND {time_filter}
         GROUP BY st.station_id
         """,
@@ -292,13 +303,13 @@ def _slot_data_from_raw(
         f"""
         SELECT
             station_id,
-            CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
+            CAST(({LOCAL_TS} % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
             COUNT(*)                                       AS total,
-            SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END)   AS avail_count,
+            SUM(CASE WHEN {col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END)   AS avail_count,
             SUM(CAST({col} AS REAL))                       AS sum_inventory
         FROM station_snapshots
         WHERE timestamp >= ?
-          AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+          AND ({LOCAL_TS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
         GROUP BY station_id, raw_slot
         """,
         (since, dow_start, dow_end),
