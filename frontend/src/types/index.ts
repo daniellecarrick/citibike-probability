@@ -25,20 +25,6 @@ export interface StationProbability {
   stress_score: number | null;
 }
 
-export interface ProbabilityResult {
-  probability: number | null;
-  sample_count: number;
-  metric: Metric;
-}
-
-export interface StressResult {
-  stress_score: number | null;
-  threshold: number;
-  low_count: number;
-  sample_count: number;
-  metric: Metric;
-}
-
 export interface HistogramBucket {
   label: string;
   count: number;
@@ -59,13 +45,6 @@ export interface StabilityMetrics {
   histogram: HistogramBucket[];
 }
 
-export interface StationDetail extends Station {
-  probabilities: Record<Metric, ProbabilityResult>;
-  stress_scores: Record<Metric, StressResult>;
-  distributions: Record<Metric, StabilityMetrics>;
-  nearby_stations: Array<Station & { dist_sq: number }>;
-}
-
 export interface CommuteResult {
   origin: { id: string; name: string };
   destination: { id: string; name: string };
@@ -78,6 +57,7 @@ export interface CommuteResult {
   success_probability: number | null;
   bike_sample_count: number;
   dock_sample_count: number;
+  data_warning: string | null;
 }
 
 export interface Recommendation {
@@ -110,6 +90,7 @@ export interface CommuteMatrixResponse {
   travel_minutes: number;
   bucket_minutes: number;
   days: CommuteMatrixDay[];
+  data_warning: string | null;
 }
 
 export interface CommuteAvailabilitySlot {
@@ -123,6 +104,7 @@ export interface CommuteAvailabilitySeries {
   destination: { id: string; name: string };
   day_of_week: DayOfWeek;
   slots: CommuteAvailabilitySlot[];
+  data_warning: string | null;
 }
 
 // Columnar per-slot data from /api/map/bulk — each array is positionally

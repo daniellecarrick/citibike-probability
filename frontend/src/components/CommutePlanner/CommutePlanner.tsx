@@ -3,44 +3,53 @@ import { useCommute } from '../../hooks/useCommute';
 import { useCommuteMatrix } from '../../hooks/useCommuteMatrix';
 import { useCommuteAvailabilitySeries } from '../../hooks/useCommuteAvailabilitySeries';
 import { useStore } from '../../store';
-import { probabilityToColor, fmtPct } from '../../utils/colorScale';
+import { probabilityToColor } from '../../utils/colorScale';
 import { filterStations } from '../../utils/stationSearch';
 import { DAYS_FULL, formatTime } from '../../utils/time';
 import { AvailabilityChart } from './AvailabilityChart';
 import { CommuteMatrix } from './CommuteMatrix';
-import { TimeStepper } from '../Controls/TimeStepper';
+import { CommuteMiniMap } from './CommuteMiniMap';
+import { CommuteWindowBars } from './CommuteWindowBars';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 import type { SavedCommute } from '../../hooks/useSavedCommutes';
 import type { DayOfWeek, Station } from '../../types';
+import bridgeImg from '../../images/bridge.png';
+import brownstoneImg from '../../images/brownstone.png';
+import cityscapeImg from '../../images/cityscape.png';
+import cityParkImg from '../../images/city_park_icon.png';
+import cityBlockImg from '../../images/city_block.png';
 
 type SavedItem = SavedCommute & { kind: 'starred' | 'recent' };
 
-const FORECAST_DAYS: { letter: string; full: string; value: DayOfWeek }[] = [
-  { letter: 'S', full: 'Sunday',    value: 6 },
-  { letter: 'M', full: 'Monday',    value: 0 },
-  { letter: 'T', full: 'Tuesday',   value: 1 },
-  { letter: 'W', full: 'Wednesday', value: 2 },
-  { letter: 'T', full: 'Thursday',  value: 3 },
-  { letter: 'F', full: 'Friday',    value: 4 },
-  { letter: 'S', full: 'Saturday',  value: 5 },
-];
+const DAY_OPTIONS = DAYS_FULL.map((full, i) => ({ value: String(i), label: full }));
 
-const FORECAST_TIME_STEP = 15;
+// Hidden 2026-09-07: user wasn't happy with how the mini maps looked.
+const SHOW_MINIMAPS = false;
+
+// Every 15 minutes across the day, matching the old time stepper's granularity.
+const TIME_OPTIONS = Array.from({ length: 96 }, (_, i) => {
+  const minutes = i * 15;
+  return { value: String(minutes), label: formatTime(minutes) };
+});
 
 const SAMPLE_COMMUTES = [
   {
     label: 'Park Slope to Midtown East',
     originId: '8066575c-f8e9-4e14-95ea-8d25ceeae2ca',
     originName: '1 St & 6 Ave',
+    originNeighborhood: 'Park Slope',
     destId: '2af3ecc3-4f43-468a-a7cc-bb4804ee3e7a',
     destName: 'E 43 St & Madison Ave',
+    destNeighborhood: 'Midtown East',
   },
   {
     label: 'Upper East Side to Financial District',
     originId: '66dd427e-0aca-11e7-82f6-3863bb44ef7c',
     originName: '1 Ave & E 78 St',
+    originNeighborhood: 'Upper East Side',
     destId: '3e9e50cc-f336-439f-bd0b-dec5499c038d',
     destName: 'Albany St & Greenwich St',
+    destNeighborhood: 'Financial District',
   },
 ] as const;
 
@@ -52,31 +61,79 @@ const SAMPLE_COMMUTES = [
 //   0.3, 0.6, 0.5, 0.2, 0.8, 0.4, 0.7, 0.9, 0.5, 0.3, 0.6, 0.8,
 // ];
 
+/**
+ * Prefers the neighborhood captured when the commute was saved (so cards
+ * render correctly even before `stations` has loaded); falls back to a
+ * live lookup, then a generic label — never the exact station name.
+ */
 function neighborhoodLabel(
   stations: Station[],
   originId: string,
   destId: string,
-  fallbackOrigin: string,
-  fallbackDest: string,
+  savedOriginNeighborhood: string | null,
+  savedDestNeighborhood: string | null,
 ): string {
-  const origin = stations.find(s => s.station_id === originId);
-  const dest = stations.find(s => s.station_id === destId);
-  return `${origin?.neighborhood ?? fallbackOrigin} to ${dest?.neighborhood ?? fallbackDest}`;
+  const origin = savedOriginNeighborhood ?? stations.find(s => s.station_id === originId)?.neighborhood ?? 'Unknown area';
+  const dest = savedDestNeighborhood ?? stations.find(s => s.station_id === destId)?.neighborhood ?? 'Unknown area';
+  return `${origin} to ${dest}`;
 }
 
-function reliabilityLabel(p: number | null): string {
-  if (p === null) return '';
-  if (p >= 0.85) return 'High reliability';
-  if (p >= 0.65) return 'Moderate reliability';
-  return 'Low reliability';
+const BOROUGH_IMAGE: Record<string, string> = {
+  Brooklyn: brownstoneImg,
+  Manhattan: cityscapeImg,
+  Queens: cityParkImg,
+  Bronx: cityBlockImg,
+};
+
+/**
+ * Picks a scene image for a sample commute card based on the boroughs it
+ * connects: a river crossing into/out of Manhattan gets the bridge image,
+ * a same-borough trip gets that borough's scene, and a cross-borough trip
+ * that doesn't touch Manhattan (e.g. Brooklyn ↔ Queens) falls back to the
+ * origin borough's scene since there's no dedicated "both" image.
+ */
+function routeImage(stations: Station[], originId: string, destId: string): string {
+  const originBorough = stations.find(s => s.station_id === originId)?.borough ?? null;
+  const destBorough = stations.find(s => s.station_id === destId)?.borough ?? null;
+  if (!originBorough || !destBorough) return cityscapeImg;
+  if (originBorough !== destBorough && (originBorough === 'Manhattan' || destBorough === 'Manhattan')) {
+    return bridgeImg;
+  }
+  return BOROUGH_IMAGE[originBorough] ?? cityscapeImg;
 }
 
-function forecastSentence(p: number | null): string {
-  if (p === null) return 'Not enough data to forecast.';
-  if (p >= 0.85) return 'You can count on this commute most days.';
-  if (p >= 0.65) return 'Usually works out, but have a backup plan.';
-  if (p >= 0.40) return 'Roughly a coin flip — consider leaving a bit earlier.';
-  return 'Risky. Bikes or docks are often unavailable at this time.';
+function LightningBoltIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+    </svg>
+  );
+}
+
+/** Plain-text-styled dropdown, for inline use inside a headline sentence. */
+function InlineSelect({
+  value, options, onChange, ariaLabel,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <span className="headline-select-wrap">
+      <select
+        className="headline-select"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        aria-label={ariaLabel}
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <span className="headline-select-caret" aria-hidden="true">▾</span>
+    </span>
+  );
 }
 
 /** Searchable station dropdown */
@@ -163,12 +220,13 @@ export function CommutePlanner({ stations }: Props) {
   const { commute, setCommute, selectedDay, selectedTime, setDay, setTime, setMapMode } = useStore();
   const { result, loading } = useCommute();
   const { matrix } = useCommuteMatrix();
+  const { matrix: matrixFine } = useCommuteMatrix(5);
   const { series } = useCommuteAvailabilitySeries();
   const { recent, starred, addRecent, isStarred } = useSavedCommutes();
 
   const [originId, setOriginId] = useState(commute?.originId ?? '');
   const [destId,   setDestId]   = useState(commute?.destId   ?? '');
-  const [bikeType, setBikeType] = useState<'any' | 'classic' | 'ebike'>('any');
+  const [bikeType, setBikeType] = useState<'any' | 'classic' | 'ebike'>('ebike');
 
   const cardsScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -179,6 +237,7 @@ export function CommutePlanner({ stations }: Props) {
     if (commute) {
       setOriginId(commute.originId);
       setDestId(commute.destId);
+      setBikeType(commute.bikeType);
     }
   }, [commute]);
 
@@ -206,7 +265,11 @@ export function CommutePlanner({ stations }: Props) {
     const o = stations.find(s => s.station_id === originId);
     const d = stations.find(s => s.station_id === destId);
     if (!o || !d) return null;
-    return { originId, originName: o.station_name, destId, destName: d.station_name, bikeType, savedAt: Date.now() };
+    return {
+      originId, originName: o.station_name, originNeighborhood: o.neighborhood ?? null,
+      destId, destName: d.station_name, destNeighborhood: d.neighborhood ?? null,
+      bikeType, savedAt: Date.now(),
+    };
   }
 
   function handleCalc() {
@@ -228,6 +291,17 @@ export function CommutePlanner({ stations }: Props) {
     if (commute) setCommute({ originId: destId, destId: originId, bikeType });
   }
 
+  function handlePickDifferentStation() {
+    setCommute(null);
+    setOriginId('');
+    setDestId('');
+  }
+
+  function handleBikeTypeChange(next: 'any' | 'ebike') {
+    setBikeType(next);
+    if (commute) setCommute({ originId, destId, bikeType: next });
+  }
+
   function handleSample(sample: (typeof SAMPLE_COMMUTES)[number]) {
     setMapMode('stations');
     setDay(1); // Tuesday
@@ -238,6 +312,7 @@ export function CommutePlanner({ stations }: Props) {
 
   const hasCommute = result !== null;
   const p = result?.success_probability ?? null;
+  const bikeLabel = bikeType === 'ebike' ? 'E-bikes' : 'Bikes';
   const pColor = probabilityToColor(p);
 
   return (
@@ -245,14 +320,14 @@ export function CommutePlanner({ stations }: Props) {
     {!commute && (
     <>
     <div className="commute-hero">
-    <h1>How Reliable is Your CitiBike Route?</h1>
+    <h1>How reliable is your Citi Bike route?</h1>
     <p className="commute-subtitle">
       See the odds of finding a bike and an open dock before you leave — for any route, any day, any time.
     </p>
       {/* Planner card */}
       <div className="card planner-card">
         <div className="planner-input-row">
-          <div className="planner-combo-wrap">
+          <div className="planner-combo-wrap planner-combo-origin">
             <StationCombo
               stations={stations}
               value={originId}
@@ -264,7 +339,7 @@ export function CommutePlanner({ stations }: Props) {
           <button className="planner-arrow-btn" onClick={handleSwap} title="Swap origin and destination">
             <span className="arrow-icon" aria-hidden="true">⇅</span>
           </button>
-          <div className="planner-combo-wrap">
+          <div className="planner-combo-wrap planner-combo-dest">
             <StationCombo
               stations={stations}
               value={destId}
@@ -288,19 +363,31 @@ export function CommutePlanner({ stations }: Props) {
         <div className="commute-cards-track">
           <div className="commute-cards-row" ref={cardsScrollRef} onScroll={updateCardScrollState}>
             {allSaved.map((c, i) => (
-              <div key={i} className="sample-commute-card saved-quick-card">
+              <button
+                key={i}
+                className="sample-commute-card saved-quick-card"
+                onClick={() => handleLoadSaved(c)}
+              >
                 <span className={`commute-card-badge ${c.kind === 'starred' ? 'badge-starred' : 'badge-recent'}`}>
                   {c.kind === 'starred' ? 'Starred' : 'Recent'}
                 </span>
-                <button className="saved-quick-load" onClick={() => handleLoadSaved(c)}>
-                  <div className="sample-commute-label">
-                    {neighborhoodLabel(stations, c.originId, c.destId, c.originName, c.destName)}
+                <div className="commute-card-row">
+                  <img
+                    className="commute-card-icon"
+                    src={routeImage(stations, c.originId, c.destId)}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  <div className="commute-card-text">
+                    <div className="sample-commute-label">
+                      {neighborhoodLabel(stations, c.originId, c.destId, c.originNeighborhood, c.destNeighborhood)}
+                    </div>
+                    <div className="sample-commute-route">
+                      {c.originName} <span className="sample-commute-arrow">→</span> {c.destName}
+                    </div>
                   </div>
-                  <div className="sample-commute-route">
-                    {c.originName} <span className="sample-commute-arrow">→</span> {c.destName}
-                  </div>
-                </button>
-              </div>
+                </div>
+              </button>
             ))}
             {sampleSlots.map(sample => (
               <button
@@ -309,9 +396,19 @@ export function CommutePlanner({ stations }: Props) {
                 onClick={() => handleSample(sample)}
               >
                 <span className="commute-card-badge">Sample</span>
-                <div className="sample-commute-label">{sample.label}</div>
-                <div className="sample-commute-route">
-                  {sample.originName} <span className="sample-commute-arrow">→</span> {sample.destName}
+                <div className="commute-card-row">
+                  <img
+                    className="commute-card-icon"
+                    src={routeImage(stations, sample.originId, sample.destId)}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  <div className="commute-card-text">
+                    <div className="sample-commute-label">{sample.label}</div>
+                    <div className="sample-commute-route">
+                      {sample.originName} <span className="sample-commute-arrow">→</span> {sample.destName}
+                    </div>
+                  </div>
                 </div>
               </button>
             ))}
@@ -358,89 +455,87 @@ export function CommutePlanner({ stations }: Props) {
 
       {/* Results: forecast + day×time heatmap fill the row together */}
       {commute && (
-        <div className="results-grid">
+        <>
+          {hasCommute && result && (
+            <div className="forecast-headline">
+              <div className="forecast-headline-top">
+                <div className="forecast-headline-eyebrow">Your commute forecast</div>
+                <div className="bike-type-toggle mode-toggle-track">
+                  <button
+                    className={`mode-toggle-btn${bikeType === 'ebike' ? ' active' : ''}`}
+                    onClick={() => handleBikeTypeChange('ebike')}
+                  >
+                    <LightningBoltIcon /> E-bikes
+                  </button>
+                  <button
+                    className={`mode-toggle-btn${bikeType !== 'ebike' ? ' active' : ''}`}
+                    onClick={() => handleBikeTypeChange('any')}
+                  >
+                    All bike types
+                  </button>
+                </div>
+              </div>
+              <h1 className="forecast-headline-title">
+                If you leave{' '}
+                <InlineSelect
+                  value={String(selectedDay)}
+                  options={DAY_OPTIONS}
+                  onChange={v => setDay(Number(v) as DayOfWeek)}
+                  ariaLabel="Day of week"
+                />{' '}
+                at{' '}
+                <span style={{ whiteSpace: 'nowrap' }}>
+                  <InlineSelect
+                    value={String(selectedTime)}
+                    options={TIME_OPTIONS}
+                    onChange={v => setTime(Number(v))}
+                    ariaLabel="Time of day"
+                  />,
+                </span>{' '}
+                your chance of a successful commute is{' '}
+                <span style={{ color: pColor }}>{p !== null ? `${Math.round(p * 100)}%` : '—'}</span>.
+              </h1>
+              {result.data_warning && (
+                <div className="data-warning-banner">
+                  {result.data_warning}{' '}
+                  <button className="data-warning-link" onClick={handlePickDifferentStation}>
+                    Pick a different station
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {loading && <div className="loading">Calculating forecast…</div>}
 
-          {hasCommute && result && (
-            <div className="card forecast-card">
-              <div className="forecast-header">
-                <div className="card-title">Your commute forecast</div>
-                <div className="forecast-lede">
-                  If you leave <strong>{DAYS_FULL[selectedDay]}</strong> at <strong>{formatTime(selectedTime)}</strong>, your
-                  chance of a successful commute is{' '}
-                  <strong style={{ color: pColor }}>{p !== null ? `${Math.round(p * 100)}%` : '—'}</strong>.
-                </div>
-                <div className="forecast-picker-row">
-                  <div className="day-pills-track">
-                    {FORECAST_DAYS.map(d => (
-                      <button
-                        key={d.value}
-                        className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
-                        title={d.full}
-                        onClick={() => setDay(d.value)}
-                      >
-                        {d.letter}
-                      </button>
-                    ))}
-                  </div>
-                  <TimeStepper minutes={selectedTime} onChange={setTime} step={FORECAST_TIME_STEP} />
-                </div>
-              </div>
-
-              <div className="forecast-hero">
-                <div className="big-stat-row">
-                  <span className="big-stat-number" style={{ color: pColor }}>
-                    {p !== null ? Math.round(p * 100) : '—'}
-                  </span>
-                  <span className="big-stat-pct" style={{ color: pColor }}>%</span>
-                </div>
-                <div
-                  className="reliability-badge"
-                  style={{ background: `${pColor}20`, color: pColor, marginBottom: 8 }}
-                >
-                  {reliabilityLabel(p)}
-                </div>
-                <div className="forecast-sentence">{forecastSentence(p)}</div>
-              </div>
-
-              <div className="substat-strip">
-                <div className="substat">
-                  <div className="substat-value" style={{ color: probabilityToColor(result.bike_probability) }}>
-                    {fmtPct(result.bike_probability)}
-                  </div>
-                  <div className="substat-label">Bike avail.</div>
-                </div>
-                <div className="substat">
-                  <div className="substat-value" style={{ color: probabilityToColor(result.dock_probability) }}>
-                    {fmtPct(result.dock_probability)}
-                  </div>
-                  <div className="substat-label">Dock avail.</div>
-                </div>
-                <div className="substat">
-                  <div className="substat-value" style={{ color: '#16181d' }}>
-                    {result.travel_minutes}
-                  </div>
-                  <div className="substat-label">min ride</div>
-                </div>
-              </div>
-
-              <div className="tip-row">
-                💡 Departs {result.departure_time} · arrives ~{result.arrival_time}
-              </div>
+          {/* TODO: mini maps hidden 2026-09-07, user wasn't happy with how they looked. Flip to re-enable. */}
+          {SHOW_MINIMAPS && (
+            <div className="commute-minimap-row">
+              <CommuteMiniMap
+                label="Near your origin"
+                dotColor="#16181d"
+                station={stations.find(s => s.station_id === commute.originId)}
+                stations={stations}
+              />
+              <CommuteMiniMap
+                label="Near your destination"
+                dotColor={probabilityToColor(0.95)}
+                station={stations.find(s => s.station_id === commute.destId)}
+                stations={stations}
+              />
             </div>
           )}
 
           {matrix && <CommuteMatrix matrix={matrix} />}
-        </div>
+
+          {hasCommute && result && matrixFine && (
+            <CommuteWindowBars matrix={matrixFine} bikeLabel={bikeLabel} />
+          )}
+        </>
       )}
 
       {/* Absolute bike/dock availability across the day */}
-      {series && <AvailabilityChart series={series} />}
-
-      {/* Recommendations
-      {hasCommute && result && recommendations.length > 0 && (
-        <RecommendationList recommendations={recommendations} currentTime={selectedTime} />
-      )} */}
+      {series && <AvailabilityChart series={series} bikeLabel={bikeLabel} />}
     </div>
   );
 }

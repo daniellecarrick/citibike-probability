@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { vi, beforeEach } from 'vitest';
-import { mockSetData, mockSetPaintProperty, mockSetLayoutProperty, mockAddSource, mockAddLayer, mockGetCanvas, mockFlyTo, mockRemove, mockOn, mockOff, mockGetSource, resetMapHandlers } from './mocks/mapboxgl';
+import { mockSetData, mockSetPaintProperty, mockSetLayoutProperty, mockAddSource, mockAddLayer, mockGetCanvas, mockFlyTo, mockFitBounds, mockRemove, mockOn, mockOff, mockGetSource, resetMapHandlers } from './mocks/mapboxgl';
 
 vi.mock('mapbox-gl', () => {
   const MapboxMock = {
@@ -16,12 +16,15 @@ vi.mock('mapbox-gl', () => {
         setLayoutProperty: mockSetLayoutProperty,
         getCanvas: mockGetCanvas,
         flyTo: mockFlyTo,
+        fitBounds: mockFitBounds,
         remove: mockRemove,
         isStyleLoaded: vi.fn(() => true),
       };
     }),
     accessToken: '',
-    LngLatBounds: vi.fn(function LngLatBoundsMock() {}),
+    LngLatBounds: vi.fn(function LngLatBoundsMock() {
+      return { extend: vi.fn() };
+    }),
     Popup: vi.fn(function PopupMock() {
       return {
         setLngLat: vi.fn().mockReturnThis(),
@@ -42,6 +45,7 @@ beforeEach(() => {
   mockAddLayer.mockClear();
   mockGetCanvas.mockClear();
   mockFlyTo.mockClear();
+  mockFitBounds.mockClear();
   mockRemove.mockClear();
   mockOn.mockClear();
   mockOff.mockClear();

@@ -1,8 +1,9 @@
+import gzip
 import sqlite3
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
-from fastapi.responses import ORJSONResponse
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import ORJSONResponse, Response
 
 from analytics.probability import Metric, get_all_stations_probability, get_bulk_day_probabilities
 from analytics.stress import get_all_stations_stress
@@ -42,6 +43,7 @@ def get_map_probabilities(
 
 @router.get("/bulk")
 def get_bulk_map_probabilities(
+    request: Request,
     day: DayParam = 0,
     metric: MetricParam = "bikes",
     conn: sqlite3.Connection = Depends(get_db),
@@ -58,5 +60,11 @@ def get_bulk_map_probabilities(
     building an id->index map from this response's station_ids, don't
     assume /api/stations shares the same order).
     """
-    data = get_bulk_day_probabilities(conn, day, metric)
-    return ORJSONResponse(content=data)
+    body = get_bulk_day_probabilities(conn, day, metric)  # already gzipped JSON
+    if "gzip" in request.headers.get("accept-encoding", ""):
+        return Response(
+            content=body,
+            media_type="application/json",
+            headers={"Content-Encoding": "gzip", "Vary": "Accept-Encoding"},
+        )
+    return Response(content=gzip.decompress(body), media_type="application/json", headers={"Vary": "Accept-Encoding"})

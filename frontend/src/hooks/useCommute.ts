@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { useStore } from '../store';
+import { toApiBikeType, useStore } from '../store';
 import type { CommuteResult, DayOfWeek, Recommendation } from '../types';
 
 export function useCommute() {
@@ -12,10 +12,11 @@ export function useCommute() {
   useEffect(() => {
     if (!commute || !commute.originId || !commute.destId) { setResult(null); setRecommendations([]); return; }
     setLoading(true);
-    const { originId, destId } = commute;
+    const { originId, destId, bikeType } = commute;
+    const apiBikeType = toApiBikeType(bikeType);
     Promise.all([
-      api.commute.success(originId, destId, selectedDay as DayOfWeek, selectedTime),
-      api.commute.recommendations(originId, destId, selectedDay as DayOfWeek, selectedTime),
+      api.commute.success(originId, destId, selectedDay as DayOfWeek, selectedTime, apiBikeType),
+      api.commute.recommendations(originId, destId, selectedDay as DayOfWeek, selectedTime, apiBikeType),
     ])
       .then(([r, recs]) => { setResult(r); setRecommendations(recs); })
       .catch(console.error)

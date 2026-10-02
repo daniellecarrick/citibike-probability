@@ -44,6 +44,14 @@ def test_probability_none_available(db):
     assert result["probability"] == pytest.approx(0.0)
 
 
+def test_probability_single_bike_not_available(db):
+    """A lone bike (count=1) is below AVAILABILITY_THRESHOLD (2) and should
+    not count as available."""
+    insert_snapshots(db, "S1", day_of_week=0, minute_of_day=9*60, count=5, bikes=1)
+    result = get_availability_probability(db, "S1", day_of_week=0, time_of_day=9*60)
+    assert result["probability"] == pytest.approx(0.0)
+
+
 def test_probability_no_snapshots_returns_none(db):
     """No matching data → probability is None."""
     result = get_availability_probability(db, "S1", day_of_week=3, time_of_day=14*60)

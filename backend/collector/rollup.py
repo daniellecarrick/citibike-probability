@@ -7,19 +7,18 @@ queries this instead of scanning station_snapshots directly.
 station_snapshots is never modified here — this is a derived/disposable
 cache table, safe to drop and rebuild at any time from raw data.
 
-Two maintenance modes, both driven by poller.py's scheduler:
+Two maintenance modes:
 
-- incremental_update(): the normal hourly path. Advances the 90-day
-  trailing window forward by exactly one interval — adds the slice of
-  station_snapshots that's newly arrived, and subtracts the equal-width
-  slice that has just aged past the 90-day cutoff as a result. Touches only
-  that interval's rows (thousands), not the whole window.
+- rebuild_rollup(): a full recompute from scratch. This is what poller.py
+  schedules — once at startup, then daily. It runs entirely inside SQLite,
+  so its memory cost doesn't grow with the size of the table.
 
-- rebuild_rollup(): a full recompute from scratch, kept as a periodic
-  (daily) correctness pass and a required one-time bootstrap before any
-  incremental update has a baseline to advance from. Incremental updates
-  alone would let floating-point drift or any missed edge case compound
-  indefinitely; a full rebuild is the honest way to self-heal that.
+- incremental_update(): advances the 90-day trailing window by one
+  interval — adds the newly-arrived slice of station_snapshots and
+  subtracts the equal-width slice that just aged out. Not currently
+  scheduled: it was the hourly path, but hourly freshness isn't needed for
+  90-day averages, and over a whole day's interval its fetchall() of delta
+  rows costs more memory than a full rebuild does.
 
 Day-of-week/slot constants must match backend/analytics/probability.py —
 duplicated here rather than imported because this module intentionally has
@@ -28,6 +27,7 @@ no dependency on the read-side analytics package.
 import logging
 import sqlite3
 import time
+from local_time import LOCAL_TS
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +38,9 @@ DEFAULT_LOOKBACK_DAYS = 90
 
 # Must match analytics/stress.py DEFAULT_THRESHOLDS
 LOW_THRESHOLDS = {"bikes": 3, "classic": 2, "ebikes": 2, "docks": 3}
+
+# Must match analytics/probability.py's AVAILABILITY_THRESHOLD.
+AVAILABILITY_THRESHOLD = 2
 
 METRIC_COLUMN = {
     "bikes": "available_bikes",
@@ -61,7 +64,7 @@ _metric_select_lines = []
 _insert_columns = ["station_id", "day_of_week", "raw_slot", "total"]
 for _metric, _col in METRIC_COLUMN.items():
     _metric_select_lines.append(
-        f"SUM(CASE WHEN {_col} >= 1 THEN 1 ELSE 0 END) AS {_metric}_avail"
+        f"SUM(CASE WHEN {_col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END) AS {_metric}_avail"
     )
     _metric_select_lines.append(
         f"SUM(CASE WHEN {_col} < {LOW_THRESHOLDS[_metric]} THEN 1 ELSE 0 END) AS {_metric}_low"
@@ -79,9 +82,9 @@ for _metric, _col in METRIC_COLUMN.items():
 REBUILD_QUERY = f"""
     SELECT
         station_id,
-        CAST((CAST((timestamp % {SECONDS_PER_WEEK}) AS INTEGER) / {SECONDS_PER_DAY} + 3) % 7 AS INTEGER)
+        CAST((CAST(({LOCAL_TS} % {SECONDS_PER_WEEK}) AS INTEGER) / {SECONDS_PER_DAY} + 3) % 7 AS INTEGER)
             AS day_of_week,
-        CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
+        CAST(({LOCAL_TS} % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
         COUNT(*) AS total,
         {','.join(_metric_select_lines)}
     FROM station_snapshots
@@ -103,17 +106,31 @@ def rebuild_rollup(conn: sqlite3.Connection, lookback_days: int = DEFAULT_LOOKBA
     """
     since = int(time.time()) - lookback_days * SECONDS_PER_DAY
     t0 = time.monotonic()
+    cols = ','.join(_insert_columns)
 
-    rows = conn.execute(REBUILD_QUERY, (since,)).fetchall()
-
-    with conn:
-        conn.execute("DELETE FROM station_slot_rollup")
-        conn.executemany(INSERT_ROW, rows)
+    # The aggregation stays inside SQLite end to end. Pulling its ~3.4M
+    # result rows into Python via fetchall() peaked at ~1.6GB of RSS, which
+    # the process then held onto for good. The minutes-long scan writes to a
+    # TEMP table (a separate database file), so it holds no write lock on the
+    # main DB and the 5-minute poller keeps writing snapshots meanwhile; only
+    # the final copy-over below takes the write lock, as before. temp_store
+    # is pinned to FILE so that scratch table (~300MB) never lands in RAM.
+    conn.execute("PRAGMA temp_store=FILE")
+    conn.execute("DROP TABLE IF EXISTS temp.rollup_rebuild")
+    conn.execute(f"CREATE TEMP TABLE rollup_rebuild AS {REBUILD_QUERY}", (since,))
+    try:
+        with conn:
+            conn.execute("DELETE FROM station_slot_rollup")
+            n = conn.execute(
+                f"INSERT INTO station_slot_rollup ({cols}) SELECT {cols} FROM temp.rollup_rebuild"
+            ).rowcount
+    finally:
+        conn.execute("DROP TABLE temp.rollup_rebuild")
 
     log.info(
-        f"Rebuilt station_slot_rollup: {len(rows)} rows in {time.monotonic() - t0:.1f}s"
+        f"Rebuilt station_slot_rollup: {n} rows in {time.monotonic() - t0:.1f}s"
     )
-    return len(rows)
+    return n
 
 
 def _delta_query(sign: int) -> str:
@@ -124,7 +141,7 @@ def _delta_query(sign: int) -> str:
     that's aged out."""
     lines = []
     for metric, col in METRIC_COLUMN.items():
-        lines.append(f"{sign} * SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END) AS {metric}_avail")
+        lines.append(f"{sign} * SUM(CASE WHEN {col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END) AS {metric}_avail")
         lines.append(f"{sign} * SUM(CASE WHEN {col} < {LOW_THRESHOLDS[metric]} THEN 1 ELSE 0 END) AS {metric}_low")
         lines.append(f"{sign} * SUM(CAST({col} AS REAL)) AS {metric}_sum")
         for suffix, cond in HISTOGRAM_BUCKETS:
@@ -133,9 +150,9 @@ def _delta_query(sign: int) -> str:
     return f"""
         SELECT
             station_id,
-            CAST((CAST((timestamp % {SECONDS_PER_WEEK}) AS INTEGER) / {SECONDS_PER_DAY} + 3) % 7 AS INTEGER)
+            CAST((CAST(({LOCAL_TS} % {SECONDS_PER_WEEK}) AS INTEGER) / {SECONDS_PER_DAY} + 3) % 7 AS INTEGER)
                 AS day_of_week,
-            CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
+            CAST(({LOCAL_TS} % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
             {sign} * COUNT(*) AS total,
             {','.join(lines)}
         FROM station_snapshots

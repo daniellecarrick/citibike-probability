@@ -12,7 +12,6 @@ interface Layer {
 
 interface Props {
   layers: Layer[];
-  currentSlot?: number;
   width?: number;
   height?: number;
   percentMode?: boolean; // when true, y axis is fixed 0-100 and values are shown as %
@@ -29,7 +28,7 @@ function slotToTime(slot: number): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-export function StackedAreaChart({ layers, currentSlot, width = 340, height = 110, percentMode = false }: Props) {
+export function StackedAreaChart({ layers, width = 340, height = 110, percentMode = false }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverSlot, setHoverSlot] = useState<number | null>(null);
 
@@ -72,10 +71,9 @@ export function StackedAreaChart({ layers, currentSlot, width = 340, height = 11
   }
 
   const yTicks = percentMode ? [0, 50, 100] : [0, Math.round(yDomainMax / 2), yDomainMax];
-  const nowX = currentSlot !== undefined ? xAt(currentSlot) : null;
   const hoverX = hoverSlot !== null ? xAt(hoverSlot) : null;
 
-  const TIP_W = 92;
+  const TIP_W = 100;
   const TIP_H = 18 + layers.length * 13;
   const tipX = hoverX !== null
     ? (hoverX + TIP_W + 6 > PAD.l + W ? hoverX - TIP_W - 6 : hoverX + 6)
@@ -86,7 +84,7 @@ export function StackedAreaChart({ layers, currentSlot, width = 340, height = 11
     <div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 6 }}>
         {layers.map(l => (
-          <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#6c727e' }}>
+          <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#6c727e' }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: l.color, display: 'inline-block' }} />
             {l.label}
           </span>
@@ -108,7 +106,7 @@ export function StackedAreaChart({ layers, currentSlot, width = 340, height = 11
             <g key={v}>
               <line x1={PAD.l} x2={PAD.l + W} y1={y} y2={y} stroke="#eceef2" strokeWidth={1} />
               <text x={PAD.l - 4} y={y} textAnchor="end" dominantBaseline="middle"
-                fontFamily="'IBM Plex Mono', monospace" fontSize={8} fill="#9aa1ad">
+                fontFamily="'IBM Plex Mono', monospace" fontSize={10} fill="#9aa1ad">
                 {percentMode ? `${v}%` : v}
               </text>
             </g>
@@ -120,12 +118,6 @@ export function StackedAreaChart({ layers, currentSlot, width = 340, height = 11
           <path key={l.label} d={areaPathFor(i)} fill={l.color} fillOpacity={0.75} stroke={l.color} strokeWidth={1} />
         ))}
 
-        {/* Now marker */}
-        {nowX !== null && (
-          <line x1={nowX} x2={nowX} y1={PAD.t} y2={PAD.t + H}
-            stroke="#16181d" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
-        )}
-
         {/* Hover crosshair + tooltip */}
         {hoverX !== null && hoverSlot !== null && (
           <g>
@@ -134,12 +126,12 @@ export function StackedAreaChart({ layers, currentSlot, width = 340, height = 11
             <rect x={tipX} y={tipY} width={TIP_W} height={TIP_H} rx={4}
               fill="white" fillOpacity={0.97} stroke="#eceef2" strokeWidth={1} />
             <text x={tipX + 8} y={tipY + 12}
-              fontFamily="'IBM Plex Mono', monospace" fontSize={8} fill="#9aa1ad">
+              fontFamily="'IBM Plex Mono', monospace" fontSize={10} fill="#9aa1ad">
               {slotToTime(hoverSlot)}
             </text>
             {layers.map((l, i) => (
               <text key={l.label} x={tipX + 8} y={tipY + 25 + i * 13}
-                fontFamily="'IBM Plex Mono', monospace" fontSize={9} fontWeight={600} fill={l.color}>
+                fontFamily="'IBM Plex Mono', monospace" fontSize={11} fontWeight={600} fill={l.color}>
                 {l.label}: {percentMode ? `${(l.values[hoverSlot] ?? 0).toFixed(0)}%` : (l.values[hoverSlot] ?? 0).toFixed(1)}
               </text>
             ))}
@@ -152,7 +144,7 @@ export function StackedAreaChart({ layers, currentSlot, width = 340, height = 11
           const label = h === 0 ? '12a' : h === 12 ? '12p' : h === 24 ? '' : `${h > 12 ? h - 12 : h}${h < 12 ? 'a' : 'p'}`;
           return (
             <text key={h} x={x} y={PAD.t + H + 12} textAnchor="middle"
-              fontFamily="'IBM Plex Mono', monospace" fontSize={8} fill="#9aa1ad">
+              fontFamily="'IBM Plex Mono', monospace" fontSize={10} fill="#9aa1ad">
               {label}
             </text>
           );

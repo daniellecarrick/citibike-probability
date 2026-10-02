@@ -9,16 +9,22 @@ All queries include a lookback window (default 90 days) so that mock seeded
 data is naturally phased out as real collected data covers the same period.
 After 90 days of live collection, only real data is used.
 
-The SQL uses (timestamp % 604800) to extract seconds-into-week.
+Days and times are New York local time, not UTC: SQL first shifts the UTC
+timestamp by the offset in effect at that instant (local_time.LOCAL_TS,
+DST-aware), then uses (local % 604800) to extract seconds-into-week.
 Python's datetime epoch (Jan 1, 1970) was a Thursday, so:
   Monday offset = 4 * 86400 = 345600
 """
+import gzip
 import sqlite3
 import time
 from typing import Literal
 
+import orjson
+
 from analytics import rollup
 from analytics.stale_cache import StaleWhileRevalidateCache
+from local_time import LOCAL_TS, LOCAL_TS_SS
 
 Metric = Literal["bikes", "classic", "ebikes", "docks"]
 
@@ -33,6 +39,13 @@ METRIC_COLUMN: dict[str, str] = {
     "ebikes": "available_ebikes",
     "docks": "available_docks",
 }
+
+# A snapshot counts as "available" for a metric only once it has at least
+# this many units — one lone bike/dock isn't a reliable enough outcome to
+# call 100%. Applies uniformly to all four metrics. Mirrored in
+# backend/collector/rollup.py (which intentionally doesn't import this
+# package) — keep both in sync if this changes.
+AVAILABILITY_THRESHOLD = 2
 
 
 def _since(lookback_days: int) -> int:
@@ -63,8 +76,9 @@ def get_availability_probability(
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
 ) -> dict:
     """
-    Probability that `metric` >= 1 for the given station, day, and time.
-    Only considers snapshots within the lookback window.
+    Probability that `metric` >= AVAILABILITY_THRESHOLD for the given
+    station, day, and time. Only considers snapshots within the lookback
+    window.
 
     Reads the pre-aggregated rollup table when it's available (fast, indexed)
     and falls back to scanning station_snapshots directly otherwise (fresh
@@ -91,15 +105,15 @@ def get_availability_probability(
             f"""
             SELECT
                 COUNT(*) AS total,
-                SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END) AS avail_count,
+                SUM(CASE WHEN {col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END) AS avail_count,
                 AVG({col}) AS mean_inventory
             FROM station_snapshots
             WHERE station_id = ?
               AND timestamp >= ?
-              AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+              AND ({LOCAL_TS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
               AND (
-                  (timestamp % {SECONDS_PER_DAY}) >= ?
-                  OR (timestamp % {SECONDS_PER_DAY}) <= ?
+                  ({LOCAL_TS} % {SECONDS_PER_DAY}) >= ?
+                  OR ({LOCAL_TS} % {SECONDS_PER_DAY}) <= ?
               )
             """,
             (station_id, since, dow_start, dow_end, tod_start + SECONDS_PER_DAY, tod_end),
@@ -111,13 +125,13 @@ def get_availability_probability(
             f"""
             SELECT
                 COUNT(*) AS total,
-                SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END) AS avail_count,
+                SUM(CASE WHEN {col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END) AS avail_count,
                 AVG({col}) AS mean_inventory
             FROM station_snapshots
             WHERE station_id = ?
               AND timestamp >= ?
-              AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
-              AND (timestamp % {SECONDS_PER_DAY}) BETWEEN ? AND ?
+              AND ({LOCAL_TS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+              AND ({LOCAL_TS} % {SECONDS_PER_DAY}) BETWEEN ? AND ?
             """,
             (station_id, since, dow_start, dow_end, tod_start_clamp, tod_end_clamp),
         ).fetchone()
@@ -174,12 +188,12 @@ def get_all_stations_probability(
     if tod_start < 0:
         time_filter = f"""
             (
-              (ss.timestamp % {SECONDS_PER_DAY}) >= {tod_start + SECONDS_PER_DAY}
-              OR (ss.timestamp % {SECONDS_PER_DAY}) <= {tod_end}
+              ({LOCAL_TS_SS} % {SECONDS_PER_DAY}) >= {tod_start + SECONDS_PER_DAY}
+              OR ({LOCAL_TS_SS} % {SECONDS_PER_DAY}) <= {tod_end}
             )
         """
     else:
-        time_filter = f"(ss.timestamp % {SECONDS_PER_DAY}) BETWEEN {tod_start_clamp} AND {tod_end_clamp}"
+        time_filter = f"({LOCAL_TS_SS} % {SECONDS_PER_DAY}) BETWEEN {tod_start_clamp} AND {tod_end_clamp}"
 
     rows = conn.execute(
         f"""
@@ -190,13 +204,13 @@ def get_all_stations_probability(
             st.lng,
             st.capacity,
             COUNT(ss.id)                                     AS total,
-            SUM(CASE WHEN ss.{col} >= 1 THEN 1 ELSE 0 END)  AS avail_count,
+            SUM(CASE WHEN ss.{col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END)  AS avail_count,
             AVG(CAST(ss.{col} AS REAL))                      AS mean_inventory
         FROM stations st
         LEFT JOIN station_snapshots ss
             ON ss.station_id = st.station_id
            AND ss.timestamp >= ?
-           AND (ss.timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+           AND ({LOCAL_TS_SS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
            AND {time_filter}
         GROUP BY st.station_id
         """,
@@ -222,18 +236,36 @@ def get_all_stations_probability(
 
 
 # This reads station_slot_rollup (via rollup.fetch_day_slot_data), which the
-# collector updates roughly hourly (collector/poller.py's incremental
-# rollup job), not every 5-minute poll — that only touches the raw
+# collector rebuilds daily (collector/poller.py's rollup job), not every
+# 5-minute poll — that only touches the raw
 # station_snapshots table. TTL just marks entries stale for the scheduler
 # below to notice; it never gates what a live request gets back (see
 # StaleWhileRevalidateCache) — a request only ever computes synchronously
 # the first time a (day, metric) combination is ever requested.
-BULK_CACHE_TTL_SECONDS = 3600
-_bulk_cache: StaleWhileRevalidateCache[dict] = StaleWhileRevalidateCache(BULK_CACHE_TTL_SECONDS)
+#
+# Entries are stored as gzipped JSON bytes, not the dict itself: as live
+# Python objects each entry held ~52MB (hundreds of thousands of boxed
+# floats/ints), so all 28 day/metric combinations pinned ~1.5GB of RAM.
+# Serialized + gzipped they're a small fraction of that, and requests skip
+# re-serializing on every hit.
+BULK_CACHE_TTL_SECONDS = 86400
+_bulk_cache: StaleWhileRevalidateCache[bytes] = StaleWhileRevalidateCache(BULK_CACHE_TTL_SECONDS)
 
 
 def _bulk_cache_key(day_of_week: int, metric: Metric, window_minutes: int, lookback_days: int) -> tuple:
     return (day_of_week, metric, window_minutes, lookback_days)
+
+
+def _compute_bulk_day_gzip_json(
+    conn: sqlite3.Connection,
+    day_of_week: int,
+    metric: Metric,
+    window_minutes: int,
+    lookback_days: int,
+) -> bytes:
+    data = _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
+    # OPT_NON_STR_KEYS matches FastAPI's ORJSONResponse — slots is keyed by int.
+    return gzip.compress(orjson.dumps(data, option=orjson.OPT_NON_STR_KEYS), compresslevel=6)
 
 
 def get_bulk_day_probabilities(
@@ -242,10 +274,11 @@ def get_bulk_day_probabilities(
     metric: Metric = "bikes",
     window_minutes: int = 15,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
-) -> dict:
+) -> bytes:
     """
-    All 288 five-minute time slots for a given day/metric, cached in memory.
-    Returns {"station_ids": [...], "slots": {"0": {...}, ..., "287": {...}}} —
+    All 288 five-minute time slots for a given day/metric, cached in memory
+    as gzipped JSON. Decodes to
+    {"station_ids": [...], "slots": {"0": {...}, ..., "287": {...}}} —
     see _compute_bulk_day_probabilities for the columnar per-slot shape.
 
     Never blocks on recomputation except the very first time a given
@@ -256,7 +289,7 @@ def get_bulk_day_probabilities(
     """
     key = _bulk_cache_key(day_of_week, metric, window_minutes, lookback_days)
     return _bulk_cache.get_or_compute(
-        key, lambda: _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
+        key, lambda: _compute_bulk_day_gzip_json(conn, day_of_week, metric, window_minutes, lookback_days)
     )
 
 
@@ -266,13 +299,13 @@ def refresh_bulk_day_probabilities(
     metric: Metric = "bikes",
     window_minutes: int = 15,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
-) -> dict:
+) -> bytes:
     """Forces a recompute of one (day, metric) bulk cache entry. Called by
     the collector's scheduler after every rollup update — readers keep
     getting the old value via get_bulk_day_probabilities until this returns."""
     key = _bulk_cache_key(day_of_week, metric, window_minutes, lookback_days)
     return _bulk_cache.refresh(
-        key, lambda: _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
+        key, lambda: _compute_bulk_day_gzip_json(conn, day_of_week, metric, window_minutes, lookback_days)
     )
 
 
@@ -292,13 +325,13 @@ def _slot_data_from_raw(
         f"""
         SELECT
             station_id,
-            CAST((timestamp % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
+            CAST(({LOCAL_TS} % {SECONDS_PER_DAY}) / 300 AS INTEGER) AS raw_slot,
             COUNT(*)                                       AS total,
-            SUM(CASE WHEN {col} >= 1 THEN 1 ELSE 0 END)   AS avail_count,
+            SUM(CASE WHEN {col} >= {AVAILABILITY_THRESHOLD} THEN 1 ELSE 0 END)   AS avail_count,
             SUM(CAST({col} AS REAL))                       AS sum_inventory
         FROM station_snapshots
         WHERE timestamp >= ?
-          AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+          AND ({LOCAL_TS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
         GROUP BY station_id, raw_slot
         """,
         (since, dow_start, dow_end),

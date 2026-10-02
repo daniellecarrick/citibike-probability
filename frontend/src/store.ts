@@ -5,6 +5,12 @@ export type Metric = 'bike' | 'ebike' | 'dock' | 'reliability' | 'stress' | 'ful
 export type MapMode = 'stations' | 'surface';
 export type BikeType = 'any' | 'classic' | 'ebike';
 
+/** Commute API only distinguishes "e-bikes only" from "any bike type" —
+ * collapses the legacy 'classic' option (kept for old saved commutes) into 'any'. */
+export function toApiBikeType(bikeType: BikeType): 'any' | 'ebike' {
+  return bikeType === 'ebike' ? 'ebike' : 'any';
+}
+
 /** Map frontend metric keys to backend API param values. */
 export const METRIC_TO_API: Record<Metric, string> = {
   bike:        'bikes',
@@ -45,7 +51,7 @@ interface AppState {
   commute: CommutePlan | null;
 
   // UI
-  focusStress: boolean;
+  focusCommute: boolean;
   animation: { playing: boolean };
 
   // Data cache
@@ -60,7 +66,7 @@ interface AppState {
   setMapMode: (mode: MapMode) => void;
   selectStation: (id: string | null) => void;
   setCommute: (plan: CommutePlan | null) => void;
-  setFocusStress: (v: boolean) => void;
+  setFocusCommute: (v: boolean) => void;
   setPlaying: (playing: boolean) => void;
   setCurrentMapData: (data: StationProbability[]) => void;
   setBulkCache: (key: string, data: BulkMapData) => void;
@@ -72,7 +78,7 @@ function getCurrentDayTime(): { day: DayOfWeek; minutes: number } {
   const now = new Date();
   // JS getDay(): 0=Sun,1=Mon...6=Sat. Frontend uses 0=Mon...6=Sun. Convert:
   const day = ((now.getDay() + 6) % 7) as DayOfWeek;
-  const minutes = Math.floor((now.getHours() * 60 + now.getMinutes()) / 5) * 5;
+  const minutes = Math.floor((now.getHours() * 60 + now.getMinutes()) / 15) * 15;
   return { day, minutes };
 }
 
@@ -85,7 +91,7 @@ export const useStore = create<AppState>((set, get) => ({
   mapMode: 'stations',
   selectedStationId: null,
   commute: null,
-  focusStress: false,
+  focusCommute: false,
   animation: { playing: false },
   currentMapData: [],
   bulkCache: {},
@@ -97,7 +103,7 @@ export const useStore = create<AppState>((set, get) => ({
   setMapMode: (mode) => set({ mapMode: mode }),
   selectStation: (id) => set({ selectedStationId: id }),
   setCommute: (plan) => set({ commute: plan }),
-  setFocusStress: (v) => set({ focusStress: v }),
+  setFocusCommute: (v) => set({ focusCommute: v }),
   setPlaying: (playing) => set((s) => ({ animation: { ...s.animation, playing } })),
   setCurrentMapData: (data) => set({ currentMapData: data }),
   setBulkCache: (key, data) => set((s) => ({ bulkCache: { ...s.bulkCache, [key]: data } })),

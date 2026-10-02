@@ -21,6 +21,7 @@ function makeMatrix(): CommuteMatrixResponse {
         sample_count: 10,
       })),
     })),
+    data_warning: null,
   };
 }
 
@@ -31,12 +32,12 @@ beforeEach(() => {
 describe('CommuteMatrix', () => {
   it('renders a cell for every day × bucket', () => {
     const { container } = render(<CommuteMatrix matrix={makeMatrix()} />);
-    expect(container.querySelectorAll('rect').length).toBe(7 * 48);
+    expect(container.querySelectorAll('rect.matrix-cell').length).toBe(7 * 48);
   });
 
   it('clicking a cell sets the global day and time to that bucket', () => {
     const { container } = render(<CommuteMatrix matrix={makeMatrix()} />);
-    const rects = container.querySelectorAll('rect');
+    const rects = container.querySelectorAll('rect.matrix-cell');
     // Wednesday (day_of_week=2) is the 3rd row (index 2); bucket 16 → 08:00 (16 * 30 = 480)
     const wednesdayRow = 2;
     const bucketIdx = 16;

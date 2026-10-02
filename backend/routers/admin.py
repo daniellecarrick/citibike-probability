@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
 
-from analytics.probability import EPOCH_MONDAY_OFFSET, SECONDS_PER_DAY, SECONDS_PER_WEEK
+from analytics.probability import AVAILABILITY_THRESHOLD, EPOCH_MONDAY_OFFSET, SECONDS_PER_DAY, SECONDS_PER_WEEK
 from database import get_db
+from local_time import LOCAL_TS
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -119,11 +120,11 @@ def get_coverage(conn: sqlite3.Connection = Depends(get_db)):
     """
     rows = conn.execute(f"""
         SELECT
-            ((timestamp % {SECONDS_PER_WEEK}) / 300)              AS raw_slot,
+            (({LOCAL_TS} % {SECONDS_PER_WEEK}) / 300)              AS raw_slot,
             COUNT(DISTINCT (timestamp / 300) * 300)                AS poll_count,
-            AVG(CASE WHEN available_ebikes >= 1 THEN 1.0 ELSE 0.0 END) AS avg_ebike_prob,
-            AVG(CASE WHEN available_bikes  >= 1 THEN 1.0 ELSE 0.0 END) AS avg_bike_prob,
-            AVG(CASE WHEN available_docks  >= 1 THEN 1.0 ELSE 0.0 END) AS avg_dock_prob,
+            AVG(CASE WHEN available_ebikes >= {AVAILABILITY_THRESHOLD} THEN 1.0 ELSE 0.0 END) AS avg_ebike_prob,
+            AVG(CASE WHEN available_bikes  >= {AVAILABILITY_THRESHOLD} THEN 1.0 ELSE 0.0 END) AS avg_bike_prob,
+            AVG(CASE WHEN available_docks  >= {AVAILABILITY_THRESHOLD} THEN 1.0 ELSE 0.0 END) AS avg_dock_prob,
             AVG(CAST(available_ebikes AS REAL))                    AS mean_ebikes
         FROM station_snapshots
         WHERE is_seeded = 0

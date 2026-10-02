@@ -111,7 +111,17 @@ npm install
 
 ## Running locally
 
-You need two processes running: the backend and the frontend. Open two terminal tabs.
+You need two processes running: the backend and the frontend.
+
+**Quick start (both at once)**
+
+```bash
+npm run project
+```
+
+This starts the backend on `http://localhost:8000` and the frontend on `http://localhost:5173` together; `Ctrl+C` stops both. It's defined in the root `package.json` and doesn't run the collector — use the two-terminal setup below if you need that.
+
+**Or, in two separate terminal tabs:**
 
 **Terminal 1 — Backend API + collector**
 

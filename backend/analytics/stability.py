@@ -7,6 +7,7 @@ import statistics
 
 from analytics import rollup
 from analytics.probability import DEFAULT_LOOKBACK_DAYS, EPOCH_MONDAY_OFFSET, METRIC_COLUMN, SECONDS_PER_DAY, SECONDS_PER_WEEK, Metric, _since
+from local_time import LOCAL_TS
 
 # Histogram buckets: 0, 1-2, 3-5, 6-10, 11-15, 16+ — must match
 # collector/rollup.py's HISTOGRAM_BUCKETS and rollup.HISTOGRAM_BUCKET_SUFFIXES.
@@ -103,8 +104,8 @@ def get_stability_metrics(
         FROM station_snapshots
         WHERE station_id = ?
           AND timestamp >= ?
-          AND (timestamp % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
-          AND (timestamp % {SECONDS_PER_DAY}) BETWEEN ? AND ?
+          AND ({LOCAL_TS} % {SECONDS_PER_WEEK}) BETWEEN ? AND ?
+          AND ({LOCAL_TS} % {SECONDS_PER_DAY}) BETWEEN ? AND ?
         """,
         (station_id, since, dow_start, dow_end, tod_start, tod_end),
     ).fetchall()

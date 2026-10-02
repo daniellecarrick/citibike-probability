@@ -61,6 +61,17 @@ def test_map_bulk_has_288_keys(client, db):
     assert data["slots"]["0"]["sample_count"][idx] >= 0
 
 
+def test_map_bulk_served_gzipped_or_plain(client, db):
+    insert_snapshots(db, "S1", day_of_week=2, minute_of_day=8*60, count=5, bikes=2)
+    gz = client.get("/api/map/bulk", params={"day": 2, "metric": "bikes"},
+                    headers={"Accept-Encoding": "gzip"})
+    plain = client.get("/api/map/bulk", params={"day": 2, "metric": "bikes"},
+                       headers={"Accept-Encoding": "identity"})
+    assert gz.headers["content-encoding"] == "gzip"
+    assert "content-encoding" not in plain.headers
+    assert gz.json() == plain.json()
+
+
 def test_commute_success(client, db):
     insert_snapshots(db, "S1", day_of_week=1, minute_of_day=8*60,    count=5, bikes=3, docks=0)
     insert_snapshots(db, "S2", day_of_week=1, minute_of_day=8*60+15, count=5, bikes=0, docks=5)

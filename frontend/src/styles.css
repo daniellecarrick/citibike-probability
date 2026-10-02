@@ -7,11 +7,15 @@
 
   /* Neutrals */
   --ink:          #16181d;
-  --text-strong: #e7e9ee;
+  --text-strong: var(--text-navy);
   --text-muted:   #6c727e;
   --text-faint:   #9aa1ad;
   --hairline:     #c2cad4;
-  --app-bg:       #0085e4;
+  --page-bg:      #f4f7fa;
+  --text-navy:    #14213d;
+  --accent-blue:      #168fe5;
+  --accent-blue-deep: #0876c9;
+  --app-bg:       var(--page-bg);
   --rail-bg:      #f7f8fa;
   --card-bg:      #ffffff;
   --tint-blue:    #eaf4ff;
@@ -59,10 +63,10 @@ body {
 button { cursor: pointer; font-family: inherit; }
 h1 {
   color: var(--text-strong);
-  font-family: var(--sans-serif);
+  font-family: var(--sans);
+  font-weight: 700;
   font-size: 56px;
   text-align: center;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.12);
   text-wrap: balance;
 }
 /* ─── App Layout ────────────────────────────────────────────────── */
@@ -144,7 +148,7 @@ h1 {
   transition: color .15s, border-color .15s;
 }
 .header-tab:hover { color: var(--ink); }
-.header-tab.active { border-bottom-color: var(--text-strong); }
+.header-tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
 
 /* Pill groups (day pills, mode toggle) — one shared style so both
    controls always match in height, spacing, and appearance. */
@@ -300,47 +304,65 @@ h1 {
   line-height: 1.5;
 }
 
-/* ─── Map page (controls bar + rail + map) ───────────────────────── */
+/* ─── Map page (rail + map) ───────────────────────────────────────── */
 .map-page {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
-.map-controls-bar {
+
+/* ─── Map options (floating menu over the map) ──────────────────── */
+.map-options-wrap {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 190;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 22px;
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--card-border);
-  flex-shrink: 0;
-}
-.map-page-title {
-  font-family: var(--serif);
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--ink);
-  text-align: left;
-  text-shadow: none;
-}
-.map-controls-row {
-  display: flex;
   align-items: flex-start;
-  gap: 28px;
-  flex-wrap: wrap;
+  gap: 10px;
 }
-.map-controls-row .time-scrubber-panel {
-  flex: 1;
-  min-width: 280px;
-  max-width: 480px;
-  padding: 0;
-  border: none;
+.map-options-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 20px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: var(--shadow-scrub);
+  transition: background .15s;
 }
+.map-options-btn.active { background: var(--control-track); }
+.map-options-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+.map-options-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-card);
+  padding: 16px;
+  box-shadow: var(--shadow-scrub);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 320px;
+  animation: fadeIn .15s ease;
+}
+.map-options-panel .time-scrubber-panel { padding: 0; border: none; }
 
 /* ─── Left Rail ─────────────────────────────────────────────────── */
 .left-rail {
-  width: 408px;
+  width: 480px;
   flex-shrink: 0;
   background: var(--rail-bg);
   border-right: 1px solid var(--card-border);
@@ -365,19 +387,53 @@ h1 {
   background: var(--map-water);
   overflow: hidden;
 }
-.map-region > div { width: 100%; height: 100%; }
+.map-region > div:first-child { width: 100%; height: 100%; }
+
+/* ─── Commute mini maps (5 nearest stations) ───────────────────── */
+.commute-minimap-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.commute-minimap-card {
+  flex: 1;
+  min-width: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.commute-minimap-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  border-bottom: 1px solid var(--card-border);
+}
+.commute-minimap-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.commute-minimap-canvas {
+  width: 100%;
+  height: 180px;
+}
 
 /* ─── Cards ─────────────────────────────────────────────────────── */
 .card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: var(--r-card);
-  padding: 18px;
+  padding: 24px;
   box-shadow: var(--shadow-card);
 }
 .card-title {
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--ink);
   margin-bottom: 14px;
@@ -444,8 +500,8 @@ h1 {
 /* ─── Planner card (Commute page) ───────────────────────────────── */
 .planner-card {
   width: 100%;
-  max-width: 820px;
-  padding: 24px;
+  max-width: 960px;
+  padding: 20px;
 }
 .planner-input-row {
   display: flex;
@@ -458,8 +514,8 @@ h1 {
 .planner-arrow-btn {
   flex-shrink: 0;
   width: 40px; height: 40px;
-  border: none;
-  background: none;
+  border: 1px solid var(--input-border);
+  background: var(--card-bg);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -474,7 +530,7 @@ h1 {
   transform: rotate(90deg);
 }
 .planner-cta-btn {
-  height: 64px;
+  height: 57px;
   padding: 0 28px;
   white-space: nowrap;
   flex-shrink: 0;
@@ -487,7 +543,7 @@ h1 {
   align-items: center;
   gap: 8px;
   width: 100%;
-  max-width: 820px;
+  max-width: 960px;
 }
 .commute-cards-track {
   position: relative;
@@ -522,36 +578,54 @@ h1 {
   background: linear-gradient(to left, var(--app-bg), transparent);
 }
 .sample-commute-card {
-  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  align-items: flex-start;
-  border-radius: 12px;
-  background: var(--bg-light);
-  padding: 26px 14px 12px;
+  align-items: stretch;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  padding: 16px 14px;
   text-align: left;
-  flex: 0 0 220px;
-  width: 220px;
+  flex: 0 0 250px;
+  width: 250px;
   transition: border-color .15s, background .15s;
+}
+.commute-card-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
 }
 .sample-commute-card:hover { border-color: var(--ink); background: var(--control-track); }
 .sample-commute-label {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
+  line-height: 1.3;
 }
 .sample-commute-route {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-muted);
+  margin-top: 2px;
 }
 .sample-commute-arrow { color: var(--text-faint); }
+.commute-card-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 50%;
+  background: var(--control-track);
+}
+.commute-card-text {
+  min-width: 0;
+  flex: 1;
+}
 
 .commute-card-badge {
-  position: absolute;
-  top: 8px;
-  left: 14px;
+  display: inline-flex;
+  align-self: flex-end;
   font-family: var(--mono);
   font-size: 8.5px;
   font-weight: 700;
@@ -561,28 +635,18 @@ h1 {
   border-radius: 20px;
   background: var(--control-track);
   color: var(--text-muted);
+  margin-bottom: 7px;
 }
 .commute-card-badge.badge-starred { background: rgba(245,184,0,1); color: #a67600; }
-.commute-card-badge.badge-recent  { background: rgba(31,162,255,1); color: white; }
+.commute-card-badge.badge-recent  { background: var(--tint-blue); color: var(--accent-blue-deep); }
 
-.saved-quick-load {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  align-items: flex-start;
-  border: none;
-  background: none;
-  padding: 0;
-  text-align: left;
-  width: 100%;
-}
 
 /* ─── Station combo ─────────────────────────────────────────────── */
 .station-combo {
   border: 1px solid var(--input-border);
   border-radius: 12px;
   background: var(--card-bg);
-  height: 64px;
+  height: 57px;
   display: flex;
   align-items: center;
   padding: 0 16px;
@@ -698,21 +762,6 @@ h1 {
 }
 .stepper-input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 
-/* ─── Results grid (forecast + heatmap side by side) ─────────────── */
-.results-grid {
-  display: grid;
-  grid-template-columns: minmax(320px, 420px) minmax(380px, 540px);
-  justify-content: center;
-  align-items: start;
-  gap: 20px;
-  width: 100%;
-  max-width: 1000px;
-}
-.results-grid > .loading { grid-column: 1 / -1; }
-@media (max-width: 900px) {
-  .results-grid { grid-template-columns: 1fr; max-width: 540px; }
-}
-
 /* ─── Availability chart (bikes @ origin vs. docks @ destination) ──── */
 .availability-chart { width: 100%; max-width: 1000px; }
 .availability-chart svg { display: block; width: 100%; height: auto; }
@@ -740,81 +789,93 @@ h1 {
   color: var(--text-faint);
 }
 
-/* ─── Forecast card ─────────────────────────────────────────────── */
-.forecast-card { padding: 0; width: 100%; }
-.forecast-header {
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--divider);
+/* ─── Forecast page headline (above the results grid) ───────────── */
+.commute-planner > .forecast-headline {
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto 22px;
 }
-.forecast-eyebrow {
+.forecast-headline-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.forecast-headline-eyebrow {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 500;
   color: var(--text-faint);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  margin-bottom: 2px;
 }
-.forecast-lede {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-}
-.forecast-lede strong { color: var(--ink); font-weight: 600; }
-.forecast-picker-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.forecast-picker-row .day-pills-track { flex: 1; }
-.forecast-picker-row .time-stepper { flex-shrink: 0; }
-
-.forecast-hero { padding: 18px; }
-.big-stat-row { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 6px; }
-.big-stat-number {
-  font-family: var(--serif);
-  font-size: 64px;
-  font-weight: 600;
-  line-height: 1;
-}
-.big-stat-pct { font-family: var(--serif); font-size: 26px; font-weight: 600; align-self: flex-end; padding-bottom: 8px; }
-.reliability-badge {
+.bike-type-toggle .mode-toggle-btn {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
-  border-radius: var(--r-pill);
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 6px;
+  gap: 4px;
 }
-.forecast-sentence { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
-
-.substat-strip {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  border-top: 1px solid var(--divider);
-}
-.substat {
-  padding: 12px 14px;
-  text-align: center;
-}
-.substat + .substat { border-left: 1px solid var(--divider); }
-.substat-value {
+.forecast-headline-title {
   font-family: var(--serif);
   font-size: 30px;
   font-weight: 600;
-  line-height: 1;
-  margin-bottom: 2px;
+  line-height: 1.4;
+  color: var(--ink);
+  text-align: left;
+  text-wrap: balance;
 }
-.substat-label { font-size: 11px; color: var(--text-muted); }
 
-.tip-row {
-  padding: 12px 18px;
-  font-size: 12px;
-  color: var(--text-muted);
-  border-top: 1px solid var(--divider);
+.data-warning-banner {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-sm);
+  background: rgba(245,184,0,0.12);
+  border: 1px solid rgba(245,184,0,0.35);
+  color: #a67600;
+  font-size: 12.5px;
   line-height: 1.5;
+}
+.data-warning-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.data-warning-link:hover { opacity: 0.8; }
+
+/* Inline text-styled <select> — day/time pickers embedded in the headline
+   sentence, with a small triangle to still read as a dropdown. */
+.headline-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  vertical-align: baseline;
+}
+.headline-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid currentColor;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  padding: 0 18px 1px 2px;
+  margin: 0 1px;
+  cursor: pointer;
+  border-radius: 0;
+}
+.headline-select:hover, .headline-select:focus { opacity: 0.7; outline: none; }
+.headline-select-caret {
+  position: absolute;
+  right: 2px;
+  bottom: 3px;
+  font-size: 0.55em;
+  pointer-events: none;
 }
 
 .stress-callout {
@@ -832,25 +893,67 @@ h1 {
 }
 .stress-callout:hover { border-color: currentColor; }
 
-/* ─── Rec chart card ────────────────────────────────────────────── */
-.rec-card-header {
+/* ─── Commute window bars (morning/evening commute cards) ───────────── */
+.commute-window-cards {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  max-width: 1000px;
+}
+.commute-window-card {
+  flex: 1;
+  min-width: 0;
+}
+.commute-window-range {
+  font-family: var(--mono);
+  font-size: 11px;
+  display: block;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+.window-bar-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.window-bar-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
+  gap: 10px;
 }
-.rec-card-title { font-family: var(--serif); font-size: 17px; font-weight: 600; }
-.rec-pct-label {
+.window-bar-row-label {
+  flex: 0 0 28px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 13px;
   color: var(--text-faint);
-  letter-spacing: 0.06em;
 }
-.rec-subtitle {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 10px;
-  line-height: 1.5;
+.window-bar-track-group {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 40px;
+}
+.window-bar {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  min-width: 1px;
+}
+.window-bar-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--control-track);
+  border-radius: 2px;
+}
+.window-bar-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 2px;
 }
 
 /* ─── Empty state (commute) ─────────────────────────────────────── */
@@ -878,7 +981,7 @@ h1 {
 }
 .cta-btn {
   display: inline-block;
-  background: var(--scale-5);
+  background: var(--accent-blue);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -887,9 +990,9 @@ h1 {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity .15s;
+  transition: background .15s;
 }
-.cta-btn:hover { opacity: 0.88; }
+.cta-btn:hover { background: var(--accent-blue-deep); }
 .scale-hint {
   display: flex;
   align-items: center;
@@ -903,8 +1006,8 @@ h1 {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: var(--r-card);
-  padding: 16px;
   width: 100%;
+  max-width: 1000px;
 }
 .commute-matrix svg { display: block; max-width: 100%; }
 .matrix-context {
@@ -925,8 +1028,8 @@ h1 {
   min-height: 16px;
 }
 
-/* ─── Matrix hover tooltip ───────────────────────────────────────── */
-.matrix-hover-tooltip {
+/* ─── Chart hover tooltip (shared by matrix/line charts) ─────────── */
+.chart-hover-tooltip {
   position: fixed;
   z-index: 60;
   pointer-events: none;
@@ -937,14 +1040,14 @@ h1 {
   box-shadow: var(--shadow-tooltip);
   min-width: 140px;
 }
-.matrix-tooltip-title {
+.chart-tooltip-title {
   font-family: var(--mono);
   font-size: 10px;
   color: var(--text-faint);
   letter-spacing: 0.04em;
   margin-bottom: 6px;
 }
-.matrix-tooltip-row {
+.chart-tooltip-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -952,8 +1055,8 @@ h1 {
   font-size: 12px;
   color: var(--text-muted);
 }
-.matrix-tooltip-row strong { color: var(--ink); font-weight: 600; }
-.matrix-tooltip-row + .matrix-tooltip-row { margin-top: 2px; }
+.chart-tooltip-row strong { color: var(--ink); font-weight: 600; }
+.chart-tooltip-row + .chart-tooltip-row { margin-top: 2px; }
 
 /* ─── Station detail (Station Details tab) ──────────────────────── */
 .station-empty {
@@ -1016,23 +1119,17 @@ h1 {
   flex-shrink: 0;
   margin-top: 4px;
 }
-.station-time-line {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 500;
-  margin-bottom: 10px;
-}
 .detail-section {
   padding: 16px;
   border-top: 1px solid var(--divider);
 }
 .detail-section-title {
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
   letter-spacing: 0.08em;
-  color: var(--text-faint);
+  /* color: var(--text-faint); */
   margin-bottom: 12px;
 }
 
@@ -1051,14 +1148,21 @@ h1 {
 }
 .ring-label { font-size: 11px; color: var(--text-muted); font-weight: 500; text-align: center; }
 
-/* Stress section */
-.stress-section {
+/* Commute summary section */
+.commute-section {
   border-radius: 12px;
   border: 1px solid transparent;
 }
-.stress-headline { font-size: 13px; color: var(--ink); line-height: 1.5; margin-bottom: 10px; }
-.stress-body { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
-.focus-stress { border-color: currentColor !important; }
+.commute-headline { font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.5; margin-bottom: 2px; }
+.commute-subheadline { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px; }
+.commute-window-block { width: 100%; }
+.commute-window-block + .commute-window-block { margin-top: 18px; }
+.commute-window-heading { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+.commute-window-heading .commute-window-range { font-weight: 400; color: var(--text-faint); }
+.commute-body { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-top: 2px; }
+.commute-ribbon { width: 100%; margin-top: 8px; }
+.commute-ribbon svg { display: block; width: 100%; height: auto; }
+.focus-commute { border-color: currentColor !important; }
 
 /* Nearby stations */
 .nearby-row {
@@ -1269,23 +1373,29 @@ h1 {
 }
 .commute-planner > * { margin: 0 auto; }
 
-/* Hero area (heading, planner card, quick-access row) fills ~90% of the
-   viewport on landing, pushing the Patterns teaser below the fold. */
+/* Hero area (heading, planner card, quick-access row) sits above the
+   quick-access row and Patterns teaser. */
 .commute-hero {
   width: 100%;
-  min-height: 90vh;
+  min-height: 62vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 24px;
-  background: radial-gradient(ellipse 60% 55% at 50% 38%, rgba(255,255,255,0.14), rgba(255,255,255,0) 70%);
+}
+.commute-hero-subhead {
+  text-align: center;
+  color: var(--text-navy);
+  font-weight: 500;
+  font-size: 26px;
+  max-width: 640px;
+  margin-top: -12px;
 }
 .commute-subtitle {
   text-align: center;
-  color: var(--text-strong);
-  opacity: 0.9;
-  font-size: 18px;
+  color: var(--text-muted);
+  font-size: 21px;
   max-width: 520px;
   margin-top: -12px;
   margin-bottom: 36px;
@@ -1325,8 +1435,23 @@ h1 {
   font-size: 11px;
   color: var(--text-muted);
 }
-.route-bar-edit {
+.route-bar-switch {
   margin-left: auto;
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-sm);
+  background: none;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: all .15s;
+}
+.route-bar-switch:hover { background: var(--control-track); color: var(--ink); }
+.route-bar-edit {
   border: 1px solid var(--card-border);
   border-radius: var(--r-sm);
   background: none;
@@ -1538,6 +1663,31 @@ h1 {
 
 /* ─── Mobile Layout ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
+
+  /* ── Planner card (Commute page): origin + dest each on their own
+     line, with the swap button sharing a row with the CTA ─────────── */
+  .planner-card { padding: 16px; }
+  .planner-input-row {
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .planner-combo-origin,
+  .planner-combo-dest {
+    flex-basis: 100%;
+  }
+  .planner-combo-origin { order: 1; }
+  .planner-combo-dest { order: 2; }
+  .planner-arrow-btn {
+    order: 3;
+    transform: rotate(90deg);
+  }
+  .planner-arrow-btn .arrow-icon { transform: none; }
+  .planner-cta-btn {
+    order: 4;
+    flex: 1;
+    width: auto;
+  }
 
   /* Map container fills the space below the header */
   .mobile-app-body {

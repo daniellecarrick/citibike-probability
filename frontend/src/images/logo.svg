@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="blueGrad" x1="220" y1="180" x2="810" y2="860" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1E78FF"/>
+      <stop offset="1" stop-color="#005CFF"/>
+    </linearGradient>
+    <clipPath id="wheelClip">
+      <circle cx="512" cy="430" r="218"/>
+    </clipPath>
+  </defs>
+
+  <!-- Map pin -->
+  <path fill="url(#blueGrad)" d="M512 128C706 128 836 268 836 456C836 599 747 713 642 839L550 951C532 972 492 972 474 951L382 839C277 713 188 599 188 456C188 268 318 128 512 128Z"/>
+
+  <!-- White circular field -->
+  <circle cx="512" cy="430" r="258" fill="white"/>
+
+  <!-- Wheel -->
+  <circle cx="512" cy="430" r="218" stroke="url(#blueGrad)" stroke-width="18"/>
+  <circle cx="512" cy="430" r="66" fill="url(#blueGrad)"/>
+  <circle cx="512" cy="430" r="34" fill="white"/>
+
+  <g stroke="url(#blueGrad)" stroke-width="16" stroke-linecap="round" clip-path="url(#wheelClip)">
+    <line x1="512" y1="364" x2="512" y2="212"/>
+    <line x1="558.67" y1="383.33" x2="666.15" y2="275.85"/>
+    <line x1="578" y1="430" x2="730" y2="430"/>
+    <line x1="558.67" y1="476.67" x2="666.15" y2="584.15"/>
+    <line x1="512" y1="496" x2="512" y2="648"/>
+    <line x1="465.33" y1="476.67" x2="357.85" y2="584.15"/>
+    <line x1="446" y1="430" x2="294" y2="430"/>
+    <line x1="465.33" y1="383.33" x2="357.85" y2="275.85"/>
+  </g>
+</svg>

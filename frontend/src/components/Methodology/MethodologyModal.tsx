@@ -22,7 +22,13 @@ export function MethodologyModal({ onClose }: Props) {
               For a station, day of week, and time of day, we look at every historical
               snapshot recorded in that same window and compute:
             </p>
-            <pre className="methodology-formula">probability = (snapshots with ≥1 available) / (total snapshots in that window)</pre>
+            <pre className="methodology-formula">probability = (snapshots with ≥2 available) / (total snapshots in that window)</pre>
+            <p>
+              A snapshot only counts as "available" once it has at least{' '}
+              <strong>2</strong> units on hand — a single remaining bike or dock is a
+              much less reliable outcome than 2 or more, so it's treated the same as
+              zero.
+            </p>
             <p>
               This is a plain empirical frequency — not a Wilson score or Bayesian
               estimate — so a probability backed by only a handful of samples can be
@@ -68,7 +74,7 @@ export function MethodologyModal({ onClose }: Props) {
             <p>
               Classic bikes, e-bikes, and open docks are tracked as separate counts and
               produce separate probabilities — switching the metric changes which
-              column is checked for "≥1 available," not just how the map is colored.
+              column is checked for "≥2 available," not just how the map is colored.
             </p>
           </section>
 

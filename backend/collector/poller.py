@@ -7,13 +7,12 @@ overlap itself, coalesce=True so a missed tick catches up once instead of
 firing a backlog):
   - poll (5 min):        fetch live GBFS status, append station_snapshots
   - station_refresh (1h): refresh station metadata + geocode new stations
-  - rollup_incremental (1h): advance station_slot_rollup's 90-day window by
-    one interval — touches only newly-arrived + newly-aged-out data, not
-    the whole table (see collector/rollup.py)
-  - rollup_full_rebuild (24h): full from-scratch recompute, as a
-    correctness safety net under the incremental updates
+  - rollup_full_rebuild (24h): recompute station_slot_rollup's 90-day window
+    from scratch (see collector/rollup.py). Daily is plenty — a day of new
+    5-minute samples barely moves a 90-day average — and the rebuild runs
+    entirely inside SQLite, so it's light on memory.
 
-Both rollup jobs also force-refresh every (day, metric) bulk-endpoint cache
+The rollup job also force-refreshes every (day, metric) bulk-endpoint cache
 entry afterward, so /api/map/bulk requests never pay for a live recompute
 except the very first time a combination is ever requested.
 """
@@ -21,7 +20,6 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Optional
 
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -29,7 +27,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from analytics.probability import refresh_bulk_day_probabilities
 from collector.database import get_connection, init_db
 from collector.geocode import geocode_missing_stations
-from collector.rollup import incremental_update, rebuild_rollup
+from collector.rollup import rebuild_rollup
 
 log = logging.getLogger(__name__)
 
@@ -37,15 +35,8 @@ STATION_INFO_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_information.js
 STATION_STATUS_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json"
 POLL_INTERVAL_SECONDS = 300  # 5 minutes
 STATION_REFRESH_INTERVAL = 3600  # refresh station metadata hourly
-ROLLUP_INCREMENTAL_INTERVAL = 3600  # advance the rollup window hourly
-ROLLUP_FULL_REBUILD_INTERVAL = 86400  # full correctness-pass rebuild daily
+ROLLUP_FULL_REBUILD_INTERVAL = 86400  # rebuild the rollup daily
 BULK_METRICS = ("bikes", "classic", "ebikes", "docks")
-
-# Timestamp incremental_update() should advance from. Set once by the
-# startup bootstrap rebuild, then kept current by every incremental tick —
-# a plain module global is fine here since this whole module represents one
-# single background task in one process, same as the rest of this file.
-_last_rollup_update_ts: Optional[float] = None
 
 
 def _parse_ebikes(station: dict) -> int:
@@ -173,46 +164,26 @@ def _refresh_all_bulk_combinations(conn) -> None:
     log.info(f"Refreshed bulk cache for all day/metric combinations in {time.monotonic() - t0:.1f}s")
 
 
-def _rollup_incremental_job() -> None:
-    global _last_rollup_update_ts
-    now = time.time()
-    conn = get_connection()
-    try:
-        incremental_update(conn, last_update_ts=int(_last_rollup_update_ts), now_ts=int(now))
-        _refresh_all_bulk_combinations(conn)
-    except Exception:
-        log.exception("Incremental rollup update failed — will retry next tick; daily full rebuild self-heals any drift")
-        return
-    finally:
-        conn.close()
-    _last_rollup_update_ts = now
-
-
 def _rollup_full_rebuild_job() -> None:
-    global _last_rollup_update_ts
     conn = get_connection()
     try:
         rebuild_rollup(conn)
         _refresh_all_bulk_combinations(conn)
     finally:
         conn.close()
-    _last_rollup_update_ts = time.time()
 
 
 async def run() -> None:
-    global _last_rollup_update_ts
     init_db()
     log.info("Database initialized")
 
     # Build the rollup once before serving reads rely on it — backend falls
     # back to scanning station_snapshots directly if this hasn't run yet,
     # but that's much slower, so don't leave it to the first scheduled tick.
-    # Also establishes the baseline incremental_update() advances from.
     try:
         await asyncio.to_thread(_rollup_full_rebuild_job)
     except Exception:
         log.exception("Initial rollup rebuild failed — backend will use its raw-scan fallback")
-        _last_rollup_update_ts = time.time()
 
     async with httpx.AsyncClient() as client:
         # Backfills every station missing borough/neighborhood — on first
@@ -230,10 +201,6 @@ async def run() -> None:
         scheduler.add_job(
             _station_refresh_job, "interval", seconds=STATION_REFRESH_INTERVAL, args=[client],
             id="station_refresh", max_instances=1, coalesce=True,
-        )
-        scheduler.add_job(
-            _rollup_incremental_job, "interval", seconds=ROLLUP_INCREMENTAL_INTERVAL,
-            id="rollup_incremental", max_instances=1, coalesce=True,
         )
         scheduler.add_job(
             _rollup_full_rebuild_job, "interval", seconds=ROLLUP_FULL_REBUILD_INTERVAL,

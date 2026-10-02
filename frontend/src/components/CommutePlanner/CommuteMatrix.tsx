@@ -1,12 +1,14 @@
 /**
  * Day × time-of-day heatmap of commute success probability. Click a cell to
- * set the global day/time (driving the forecast-card + RecommendationList
- * below); the cell nearest the current day/time is outlined.
+ * set the global day/time (driving RecommendationList below); the cell
+ * nearest the current day/time is outlined. Fills the width of its
+ * container — GRID_W is measured, not fixed, so more time buckets (finer
+ * granularity) still fit the full page width instead of shrinking the SVG.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../store';
 import { probabilityToColor } from '../../utils/colorScale';
-import { DAYS_FULL } from '../../utils/time';
+import { DAYS_FULL, COMMUTE_WINDOWS } from '../../utils/time';
 import type { CommuteMatrixResponse } from '../../types';
 
 interface Props {
@@ -15,9 +17,13 @@ interface Props {
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const PAD = { t: 8, r: 8, b: 20, l: 34 };
+const PAD = { t: 22, r: 8, b: 20, l: 34 };
 const ROW_H = 20;
-const GRID_W = 432;
+const DEFAULT_GRID_W = 900; // used only before the container is first measured
+
+const [AM_WINDOW, PM_WINDOW] = COMMUTE_WINDOWS;
+const MORNING_WINDOW: [number, number] = [AM_WINDOW.startSlot * 5, AM_WINDOW.endSlot * 5];
+const EVENING_WINDOW: [number, number] = [PM_WINDOW.startSlot * 5, PM_WINDOW.endSlot * 5];
 
 function formatTime(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -79,14 +85,36 @@ export function CommuteMatrix({ matrix }: Props) {
   const { selectedDay, selectedTime, setDay, setTime } = useStore();
   const [hover, setHover] = useState<{ day: number; bucketIdx: number } | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(DEFAULT_GRID_W + PAD.l + PAD.r);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setContainerWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const bucketsPerDay = matrix.days[0]?.buckets.length ?? 48;
-  const cellW = GRID_W / bucketsPerDay;
+  const gridW = Math.max(200, containerWidth - PAD.l - PAD.r);
+  const cellW = gridW / bucketsPerDay;
   const gridH = ROW_H * matrix.days.length;
-  const width = PAD.l + GRID_W + PAD.r;
+  const width = PAD.l + gridW + PAD.r;
   const height = PAD.t + gridH + PAD.b;
 
   const selectedBucketIdx = Math.floor(selectedTime / matrix.bucket_minutes);
+
+  // Commute windows only apply Mon–Fri (day_of_week 0–4); find the
+  // contiguous row range they occupy so the outline skips Sat/Sun rows.
+  const weekdayRowIdxs = matrix.days
+    .map((day, rowIdx) => (day.day_of_week < 5 ? rowIdx : null))
+    .filter((idx): idx is number => idx !== null);
+  const weekdayTop = weekdayRowIdxs.length ? Math.min(...weekdayRowIdxs) : null;
+  const weekdayBottom = weekdayRowIdxs.length ? Math.max(...weekdayRowIdxs) : null;
 
   const hoverBucket = hover
     ? matrix.days[hover.day]?.buckets[hover.bucketIdx]
@@ -95,7 +123,7 @@ export function CommuteMatrix({ matrix }: Props) {
   const context = useMemo(() => contextSentence(matrix), [matrix]);
 
   return (
-    <div className="commute-matrix">
+    <div className="commute-matrix card" ref={containerRef}>
       <div className="card-title">Probability of a successful commute by hour and day</div>
       {context && <div className="matrix-context">{context}</div>}
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
@@ -114,6 +142,7 @@ export function CommuteMatrix({ matrix }: Props) {
               const isSelected = day.day_of_week === selectedDay && colIdx === selectedBucketIdx;
               return (
                 <rect
+                  className="matrix-cell"
                   key={bucket.departure_minute}
                   x={x} y={y}
                   width={Math.max(1, cellW - 1)} height={ROW_H - 1}
@@ -131,13 +160,44 @@ export function CommuteMatrix({ matrix }: Props) {
           </g>
         ))}
 
-        {/* Time-of-day axis */}
+        {/* Morning / evening commute window outlines — Mon–Fri rows only */}
+        {weekdayTop !== null && weekdayBottom !== null &&
+          ([['Morning commute', MORNING_WINDOW], ['Evening commute', EVENING_WINDOW]] as const).map(([label, [start, end]]) => {
+            const x1 = PAD.l + (start / matrix.bucket_minutes) * cellW;
+            const x2 = PAD.l + (end / matrix.bucket_minutes) * cellW;
+            const y1 = PAD.t + weekdayTop * ROW_H;
+            const y2 = PAD.t + (weekdayBottom + 1) * ROW_H;
+            return (
+              <g key={label} pointerEvents="none">
+                <rect
+                  x={x1} y={y1}
+                  width={x2 - x1} height={y2 - y1}
+                  fill="none" stroke="#16181d" strokeWidth={1.5} rx={3}
+                />
+                <text
+                  x={(x1 + x2) / 2} y={PAD.t - 8}
+                  textAnchor="middle"
+                  fontFamily="'IBM Plex Mono', monospace" fontSize={8} fontWeight={700}
+                  letterSpacing="0.04em" fill="#16181d"
+                >
+                  {label.toUpperCase()}
+                </text>
+              </g>
+            );
+          })}
+
+        {/* Time-of-day axis. This SVG's viewBox is sized to the container's
+            actual measured pixel width (1 unit = 1px, no scaling), unlike
+            AvailabilityChart/RecommendationList which stretch a fixed-width
+            viewBox to fill the same max-width:1000px container — so a font
+            size here needs to be bumped by that ~1000/700 stretch factor
+            (9 → 13) to read as the same size as their axis labels. */}
         {[0, 6, 12, 18, 24].map(h => {
           const x = PAD.l + (h * 60 / matrix.bucket_minutes) * cellW;
           const label = h === 0 ? '12a' : h === 12 ? '12p' : h === 24 ? '' : `${h > 12 ? h - 12 : h}${h < 12 ? 'a' : 'p'}`;
           return (
-            <text key={h} x={x} y={PAD.t + gridH + 13} textAnchor="middle"
-              fontFamily="'IBM Plex Mono', monospace" fontSize={8} fill="#9aa1ad">
+            <text key={h} x={x} y={PAD.t + gridH + 15} textAnchor="middle"
+              fontFamily="'IBM Plex Mono', monospace" fontSize={13} fill="#9aa1ad">
               {label}
             </text>
           );
@@ -146,21 +206,21 @@ export function CommuteMatrix({ matrix }: Props) {
 
       {hoverBucket && hoverPos && (
         <div
-          className="matrix-hover-tooltip"
+          className="chart-hover-tooltip"
           style={{ left: hoverPos.x + 14, top: hoverPos.y - 64 }}
         >
-          <div className="matrix-tooltip-title">
+          <div className="chart-tooltip-title">
             {DAY_LABELS[matrix.days[hover!.day].day_of_week]} {formatTime(hoverBucket.departure_minute)}
           </div>
-          <div className="matrix-tooltip-row">
+          <div className="chart-tooltip-row">
             <span>Success</span>
             <strong>{fmtPct(hoverBucket.success_probability)}</strong>
           </div>
-          <div className="matrix-tooltip-row">
+          <div className="chart-tooltip-row">
             <span>Bike avail.</span>
             <strong>{fmtPct(hoverBucket.bike_probability)}</strong>
           </div>
-          <div className="matrix-tooltip-row">
+          <div className="chart-tooltip-row">
             <span>Dock avail.</span>
             <strong>{fmtPct(hoverBucket.dock_probability)}</strong>
           </div>

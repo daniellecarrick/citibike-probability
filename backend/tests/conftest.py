@@ -9,6 +9,8 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from local_time import EDT_OFFSET_SECONDS, EST_OFFSET_SECONDS, to_local_ts
+
 # ── Schema ──────────────────────────────────────────────────────────────────
 
 SCHEMA = """
@@ -97,20 +99,23 @@ def timestamp_for(day_of_week: int, minute_of_day: int, weeks_ago: int = 1) -> i
     Construct a Unix timestamp that falls on the given day-of-week and
     minute-of-day, approximately `weeks_ago` weeks in the past.
 
-    The analytics code uses (ts % SECONDS_PER_WEEK) to identify the day,
-    with Monday at offset EPOCH_MONDAY_OFFSET (345600). So we need:
-        ts % SECONDS_PER_WEEK == day_of_week * SECONDS_PER_DAY + EPOCH_MONDAY_OFFSET + minute_of_day * 60
-
-    We build that by starting from the latest epoch-week boundary and adding
-    the desired day/time offset.
+    The analytics code buckets by New York local time: it shifts each
+    timestamp by the UTC offset in effect (local_time.to_local_ts) and then
+    uses (local % SECONDS_PER_WEEK) to identify the day, with Monday at
+    offset EPOCH_MONDAY_OFFSET (345600). So we build the desired *local*
+    epoch value, then convert back to the UTC instant that maps to it.
     """
-    now = int(time.time())
-    # Start of the current epoch week (Thursday boundary — epoch was Thursday)
-    current_epoch_week_start = (now // SECONDS_PER_WEEK) * SECONDS_PER_WEEK
-    # Offset within the epoch week that corresponds to this day + time
+    now_local = to_local_ts(int(time.time()))
+    # Start of the current local epoch week (Thursday boundary — epoch was Thursday)
+    current_epoch_week_start = (now_local // SECONDS_PER_WEEK) * SECONDS_PER_WEEK
     day_offset_in_epoch_week = day_of_week * SECONDS_PER_DAY + EPOCH_MONDAY_OFFSET + minute_of_day * 60
-    target = current_epoch_week_start - weeks_ago * SECONDS_PER_WEEK + day_offset_in_epoch_week
-    return target
+    target_local = current_epoch_week_start - weeks_ago * SECONDS_PER_WEEK + day_offset_in_epoch_week
+    # Invert to_local_ts: try the winter offset, then the summer one, keep the one that round-trips.
+    for offset in (EST_OFFSET_SECONDS, EDT_OFFSET_SECONDS):
+        ts = target_local - offset
+        if to_local_ts(ts) == target_local:
+            return ts
+    return target_local - EST_OFFSET_SECONDS  # nonexistent local time (spring-forward gap)
 
 
 # ── Core fixture ─────────────────────────────────────────────────────────────

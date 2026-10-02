@@ -4,8 +4,10 @@ import type { BikeType } from '../store';
 export interface SavedCommute {
   originId: string;
   originName: string;
+  originNeighborhood: string | null;
   destId: string;
   destName: string;
+  destNeighborhood: string | null;
   bikeType: BikeType;
   savedAt: number;
 }
