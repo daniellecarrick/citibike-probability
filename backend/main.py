@@ -87,14 +87,12 @@ def health():
     try:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT COUNT(*) AS total, MAX(timestamp) AS latest FROM station_snapshots"
-        ).fetchone()
+        # MAX(timestamp) is a few-page lookup on idx_snap_time. Don't add
+        # COUNT(*) back: it scans a whole index (15M+ rows), which on a cold
+        # container outlasted every Railway healthcheck attempt and failed
+        # the deploy.
+        row = conn.execute("SELECT MAX(timestamp) AS latest FROM station_snapshots").fetchone()
         conn.close()
-        return {
-            "status": "ok",
-            "snapshot_count": row["total"],
-            "latest_timestamp": row["latest"],
-        }
+        return {"status": "ok", "latest_timestamp": row["latest"]}
     except Exception as exc:
         return {"status": "error", "detail": str(exc)}
