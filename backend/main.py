@@ -83,18 +83,18 @@ app.include_router(admin.router)
 
 @app.get("/api/health")
 def health():
+    # Must stay cheap: no aggregation over station_snapshots (11+ GB). A
+    # COUNT(*)/MAX(timestamp) scan here starves the platform healthcheck.
+    log.info("Health check endpoint called")
     db_path = os.environ.get("DB_PATH", str(Path(__file__).parent.parent / "data" / "citibike.db"))
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT COUNT(*) AS total, MAX(timestamp) AS latest FROM station_snapshots"
-        ).fetchone()
-        conn.close()
-        return {
-            "status": "ok",
-            "snapshot_count": row["total"],
-            "latest_timestamp": row["latest"],
-        }
+        conn = sqlite3.connect(db_path, timeout=2)
+        try:
+            conn.execute("SELECT 1").fetchone()
+        finally:
+            conn.close()
     except Exception as exc:
+        log.error("Health check database probe failed: %s", exc)
         return {"status": "error", "detail": str(exc)}
+    log.info("Health check completed successfully")
+    return {"status": "ok"}
