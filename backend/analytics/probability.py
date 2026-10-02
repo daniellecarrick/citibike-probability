@@ -15,9 +15,12 @@ DST-aware), then uses (local % 604800) to extract seconds-into-week.
 Python's datetime epoch (Jan 1, 1970) was a Thursday, so:
   Monday offset = 4 * 86400 = 345600
 """
+import gzip
 import sqlite3
 import time
 from typing import Literal
+
+import orjson
 
 from analytics import rollup
 from analytics.stale_cache import StaleWhileRevalidateCache
@@ -233,18 +236,36 @@ def get_all_stations_probability(
 
 
 # This reads station_slot_rollup (via rollup.fetch_day_slot_data), which the
-# collector updates roughly hourly (collector/poller.py's incremental
-# rollup job), not every 5-minute poll — that only touches the raw
+# collector rebuilds daily (collector/poller.py's rollup job), not every
+# 5-minute poll — that only touches the raw
 # station_snapshots table. TTL just marks entries stale for the scheduler
 # below to notice; it never gates what a live request gets back (see
 # StaleWhileRevalidateCache) — a request only ever computes synchronously
 # the first time a (day, metric) combination is ever requested.
-BULK_CACHE_TTL_SECONDS = 3600
-_bulk_cache: StaleWhileRevalidateCache[dict] = StaleWhileRevalidateCache(BULK_CACHE_TTL_SECONDS)
+#
+# Entries are stored as gzipped JSON bytes, not the dict itself: as live
+# Python objects each entry held ~52MB (hundreds of thousands of boxed
+# floats/ints), so all 28 day/metric combinations pinned ~1.5GB of RAM.
+# Serialized + gzipped they're a small fraction of that, and requests skip
+# re-serializing on every hit.
+BULK_CACHE_TTL_SECONDS = 86400
+_bulk_cache: StaleWhileRevalidateCache[bytes] = StaleWhileRevalidateCache(BULK_CACHE_TTL_SECONDS)
 
 
 def _bulk_cache_key(day_of_week: int, metric: Metric, window_minutes: int, lookback_days: int) -> tuple:
     return (day_of_week, metric, window_minutes, lookback_days)
+
+
+def _compute_bulk_day_gzip_json(
+    conn: sqlite3.Connection,
+    day_of_week: int,
+    metric: Metric,
+    window_minutes: int,
+    lookback_days: int,
+) -> bytes:
+    data = _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
+    # OPT_NON_STR_KEYS matches FastAPI's ORJSONResponse — slots is keyed by int.
+    return gzip.compress(orjson.dumps(data, option=orjson.OPT_NON_STR_KEYS), compresslevel=6)
 
 
 def get_bulk_day_probabilities(
@@ -253,10 +274,11 @@ def get_bulk_day_probabilities(
     metric: Metric = "bikes",
     window_minutes: int = 15,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
-) -> dict:
+) -> bytes:
     """
-    All 288 five-minute time slots for a given day/metric, cached in memory.
-    Returns {"station_ids": [...], "slots": {"0": {...}, ..., "287": {...}}} —
+    All 288 five-minute time slots for a given day/metric, cached in memory
+    as gzipped JSON. Decodes to
+    {"station_ids": [...], "slots": {"0": {...}, ..., "287": {...}}} —
     see _compute_bulk_day_probabilities for the columnar per-slot shape.
 
     Never blocks on recomputation except the very first time a given
@@ -267,7 +289,7 @@ def get_bulk_day_probabilities(
     """
     key = _bulk_cache_key(day_of_week, metric, window_minutes, lookback_days)
     return _bulk_cache.get_or_compute(
-        key, lambda: _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
+        key, lambda: _compute_bulk_day_gzip_json(conn, day_of_week, metric, window_minutes, lookback_days)
     )
 
 
@@ -277,13 +299,13 @@ def refresh_bulk_day_probabilities(
     metric: Metric = "bikes",
     window_minutes: int = 15,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
-) -> dict:
+) -> bytes:
     """Forces a recompute of one (day, metric) bulk cache entry. Called by
     the collector's scheduler after every rollup update — readers keep
     getting the old value via get_bulk_day_probabilities until this returns."""
     key = _bulk_cache_key(day_of_week, metric, window_minutes, lookback_days)
     return _bulk_cache.refresh(
-        key, lambda: _compute_bulk_day_probabilities(conn, day_of_week, metric, window_minutes, lookback_days)
+        key, lambda: _compute_bulk_day_gzip_json(conn, day_of_week, metric, window_minutes, lookback_days)
     )
 
 

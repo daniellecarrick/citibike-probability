@@ -126,7 +126,7 @@ def init_db() -> None:
 
     # Migration: add per-metric histogram bucket columns to station_slot_rollup
     # for existing databases that predate this change. Zero-filled — stale
-    # until the next hourly rebuild_rollup() pass repopulates every row anyway.
+    # until the next daily rebuild_rollup() pass repopulates every row anyway.
     rollup_cols = {row[1] for row in conn.execute("PRAGMA table_info(station_slot_rollup)")}
     bucket_suffixes = ["h0", "h1_2", "h3_5", "h6_10", "h11_15", "h16p"]
     for metric in ("bikes", "classic", "ebikes", "docks"):

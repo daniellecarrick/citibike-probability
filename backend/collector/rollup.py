@@ -7,19 +7,18 @@ queries this instead of scanning station_snapshots directly.
 station_snapshots is never modified here — this is a derived/disposable
 cache table, safe to drop and rebuild at any time from raw data.
 
-Two maintenance modes, both driven by poller.py's scheduler:
+Two maintenance modes:
 
-- incremental_update(): the normal hourly path. Advances the 90-day
-  trailing window forward by exactly one interval — adds the slice of
-  station_snapshots that's newly arrived, and subtracts the equal-width
-  slice that has just aged past the 90-day cutoff as a result. Touches only
-  that interval's rows (thousands), not the whole window.
+- rebuild_rollup(): a full recompute from scratch. This is what poller.py
+  schedules — once at startup, then daily. It runs entirely inside SQLite,
+  so its memory cost doesn't grow with the size of the table.
 
-- rebuild_rollup(): a full recompute from scratch, kept as a periodic
-  (daily) correctness pass and a required one-time bootstrap before any
-  incremental update has a baseline to advance from. Incremental updates
-  alone would let floating-point drift or any missed edge case compound
-  indefinitely; a full rebuild is the honest way to self-heal that.
+- incremental_update(): advances the 90-day trailing window by one
+  interval — adds the newly-arrived slice of station_snapshots and
+  subtracts the equal-width slice that just aged out. Not currently
+  scheduled: it was the hourly path, but hourly freshness isn't needed for
+  90-day averages, and over a whole day's interval its fetchall() of delta
+  rows costs more memory than a full rebuild does.
 
 Day-of-week/slot constants must match backend/analytics/probability.py —
 duplicated here rather than imported because this module intentionally has
@@ -107,17 +106,31 @@ def rebuild_rollup(conn: sqlite3.Connection, lookback_days: int = DEFAULT_LOOKBA
     """
     since = int(time.time()) - lookback_days * SECONDS_PER_DAY
     t0 = time.monotonic()
+    cols = ','.join(_insert_columns)
 
-    rows = conn.execute(REBUILD_QUERY, (since,)).fetchall()
-
-    with conn:
-        conn.execute("DELETE FROM station_slot_rollup")
-        conn.executemany(INSERT_ROW, rows)
+    # The aggregation stays inside SQLite end to end. Pulling its ~3.4M
+    # result rows into Python via fetchall() peaked at ~1.6GB of RSS, which
+    # the process then held onto for good. The minutes-long scan writes to a
+    # TEMP table (a separate database file), so it holds no write lock on the
+    # main DB and the 5-minute poller keeps writing snapshots meanwhile; only
+    # the final copy-over below takes the write lock, as before. temp_store
+    # is pinned to FILE so that scratch table (~300MB) never lands in RAM.
+    conn.execute("PRAGMA temp_store=FILE")
+    conn.execute("DROP TABLE IF EXISTS temp.rollup_rebuild")
+    conn.execute(f"CREATE TEMP TABLE rollup_rebuild AS {REBUILD_QUERY}", (since,))
+    try:
+        with conn:
+            conn.execute("DELETE FROM station_slot_rollup")
+            n = conn.execute(
+                f"INSERT INTO station_slot_rollup ({cols}) SELECT {cols} FROM temp.rollup_rebuild"
+            ).rowcount
+    finally:
+        conn.execute("DROP TABLE temp.rollup_rebuild")
 
     log.info(
-        f"Rebuilt station_slot_rollup: {len(rows)} rows in {time.monotonic() - t0:.1f}s"
+        f"Rebuilt station_slot_rollup: {n} rows in {time.monotonic() - t0:.1f}s"
     )
-    return len(rows)
+    return n
 
 
 def _delta_query(sign: int) -> str:
