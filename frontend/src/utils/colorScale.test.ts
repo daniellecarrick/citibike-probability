@@ -18,10 +18,15 @@ describe('probabilityToColor', () => {
     expect(color).toMatch(/rgba\(31,162,255/);
   });
 
-  it('returns purple-ish at 0.5', () => {
-    const color = probabilityToColor(0.5);
-    // vivid scale midpoint: s1 = [139,61,245]
+  it('returns purple-ish at 0.75', () => {
+    const color = probabilityToColor(0.75);
+    // gradient spans 0.5 → 1, so its midpoint s1 = [139,61,245] sits at 0.75
     expect(color).toMatch(/rgba\(139,61,245/);
+  });
+
+  it('returns the low color for anything at or below 0.5', () => {
+    expect(probabilityToColor(0.5)).toMatch(/rgba\(255,45,120/);
+    expect(probabilityToColor(0.3)).toMatch(/rgba\(255,45,120/);
   });
 
   it('clamps values below 0 to red', () => {

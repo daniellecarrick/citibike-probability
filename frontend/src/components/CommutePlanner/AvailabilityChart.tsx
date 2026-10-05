@@ -19,8 +19,8 @@ const IW = W - PAD.l - PAD.r;
 const IH = H - PAD.t - PAD.b;
 const DAY_MINUTES = 24 * 60;
 
-const BIKE_COLOR = '#16181d';
-const DOCK_COLOR = '#1fa2ff';
+const BIKE_COLOR = '#1fa2ff';
+const DOCK_COLOR = '#16181d';
 
 function xScale(minute: number): number {
   return PAD.l + (minute / (DAY_MINUTES - 1)) * IW;
@@ -190,11 +190,11 @@ export function AvailabilityChart({ series, bikeLabel }: Props) {
         >
           <div className="chart-tooltip-title">{formatTime(hoverSlot.minute)}</div>
           <div className="chart-tooltip-row">
-            <span>{bikeLabel}</span>
+            <span style={{ color: BIKE_COLOR }}>{bikeLabel}</span>
             <strong>{hoverSlot.bikes_available !== null ? Math.round(hoverSlot.bikes_available) : '—'}</strong>
           </div>
           <div className="chart-tooltip-row">
-            <span>Docks</span>
+            <span style={{ color: DOCK_COLOR }}>Docks</span>
             <strong>{hoverSlot.docks_available !== null ? Math.round(hoverSlot.docks_available) : '—'}</strong>
           </div>
         </div>

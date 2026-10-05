@@ -1,8 +1,14 @@
 /**
  * Probability color scale: pink (#ff2d78) → purple (#8b3df5) → blue (#1fa2ff)
  * Piecewise linear RGB interpolation. t = 0 (poor) … 1 (excellent).
+ * Everything at or below SCALE_FLOOR is the low color; the gradient spans
+ * SCALE_FLOOR → 1, so purple sits at 75% and only ~100% reads fully blue.
  * Stress is pre-inverted before passing in (low stress → blue).
  */
+
+/** Probabilities at or below this all get the scale's low (pink/red) color. */
+export const SCALE_FLOOR = 0.5;
+const SCALE_MID = (SCALE_FLOOR + 1) / 2;
 
 type Stop = [number, number, number]; // [r, g, b]
 
@@ -19,7 +25,7 @@ function lerp(a: number, b: number, t: number): number {
 }
 
 function scaleRGB(t: number, scale: [Stop, Stop, Stop]): [number, number, number] {
-  const clamped = Math.max(0, Math.min(1, t));
+  const clamped = Math.max(0, Math.min(1, (t - SCALE_FLOOR) / (1 - SCALE_FLOOR)));
   const [s0, s1, s2] = scale;
   if (clamped <= 0.5) {
     const u = clamped / 0.5;
@@ -52,13 +58,19 @@ export function probabilityToRGB(
 export function mapboxColorExpression(scaleName = 'vivid', valueProperty = 'probability'): mapboxgl.Expression {
   const scale = SCALES[scaleName] ?? SCALES.vivid;
   const [s0, s1, s2] = scale;
+  // % Full isn't a probability, so it keeps the plain 0 → 0.5 → 1 spread.
+  const [lo, mid] = valueProperty === 'fullness' ? [0, 0.5] : [SCALE_FLOOR, SCALE_MID];
+  const stops = [
+    ...(lo > 0 ? [0, `rgb(${s0.join(',')})`] : []),
+    lo,  `rgb(${s0.join(',')})`,
+    mid, `rgb(${s1.join(',')})`,
+    1,   `rgb(${s2.join(',')})`,
+  ];
   return [
     'interpolate', ['linear'],
     ['coalesce', ['get', valueProperty], -1],
     -1,  `rgb(${[154,161,173].join(',')})`,  // no data
-    0,   `rgb(${s0.join(',')})`,
-    0.5, `rgb(${s1.join(',')})`,
-    1,   `rgb(${s2.join(',')})`,
+    ...stops,
   ];
 }
 

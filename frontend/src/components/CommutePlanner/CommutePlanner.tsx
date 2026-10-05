@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useCommute } from '../../hooks/useCommute';
 import { useCommuteMatrix } from '../../hooks/useCommuteMatrix';
 import { useCommuteAvailabilitySeries } from '../../hooks/useCommuteAvailabilitySeries';
@@ -9,17 +10,34 @@ import { DAYS_FULL, formatTime } from '../../utils/time';
 import { AvailabilityChart } from './AvailabilityChart';
 import { CommuteMatrix } from './CommuteMatrix';
 import { CommuteMiniMap } from './CommuteMiniMap';
-import { CommuteWindowBars } from './CommuteWindowBars';
+import { CommuteRouteMap, ROUTE_DEST_COLOR, ROUTE_ORIGIN_COLOR } from './CommuteRouteMap';
+import { CommuteWeekView } from './CommuteWeekView';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 import type { SavedCommute } from '../../hooks/useSavedCommutes';
-import type { DayOfWeek, Station } from '../../types';
+import type { CommuteAvailabilitySeries, DayOfWeek, Station } from '../../types';
 import bridgeImg from '../../images/bridge.png';
 import brownstoneImg from '../../images/brownstone.png';
 import cityscapeImg from '../../images/cityscape.png';
 import cityParkImg from '../../images/city_park_icon.png';
 import cityBlockImg from '../../images/city_block.png';
+import heroMapImg from '../../images/hero-map.jpg';
 
 type SavedItem = SavedCommute & { kind: 'starred' | 'recent' };
+
+/** Value from the 5-min series at `minute`, or null if there's no slot within 5 minutes. */
+function seriesValueAt(
+  series: CommuteAvailabilitySeries | null,
+  minute: number,
+  key: 'bikes_available' | 'docks_available',
+): number | null {
+  if (!series) return null;
+  let best: CommuteAvailabilitySeries['slots'][number] | null = null;
+  for (const slot of series.slots) {
+    if (!best || Math.abs(slot.minute - minute) < Math.abs(best.minute - minute)) best = slot;
+  }
+  if (!best || Math.abs(best.minute - minute) > 5) return null;
+  return best[key];
+}
 
 const DAY_OPTIONS = DAYS_FULL.map((full, i) => ({ value: String(i), label: full }));
 
@@ -107,6 +125,30 @@ function LightningBoltIcon() {
     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
     </svg>
+  );
+}
+
+/**
+ * Landing-page teaser for the Map tab: a still of the station map at
+ * Tuesday 8:30 AM (e-bikes). Clicking opens the map set to that same moment
+ * so people land on what the picture showed.
+ */
+function MapTeaser() {
+  const { setDay, setTime, setMetric, setMapMode } = useStore();
+  return (
+    <Link
+      to="/map"
+      className="map-teaser"
+      onClick={() => { setMapMode('stations'); setMetric('ebike'); setDay(1); setTime(510); }}
+      aria-label="Explore the station map"
+    >
+      <img src={heroMapImg} alt="Map of Manhattan Citi Bike stations colored by e-bike availability on a Tuesday at 8:30 AM" />
+      <span className="map-teaser-cta">
+        <span className="map-teaser-cta-title">Explore the map <span aria-hidden="true">→</span></span>
+        <span className="map-teaser-cta-sub">Every station, any day and time</span>
+      </span>
+      <span className="map-teaser-credit">© Mapbox © OpenStreetMap</span>
+    </Link>
   );
 }
 
@@ -314,12 +356,21 @@ export function CommutePlanner({ stations }: Props) {
   const p = result?.success_probability ?? null;
   const bikeLabel = bikeType === 'ebike' ? 'E-bikes' : 'Bikes';
   const pColor = probabilityToColor(p);
+  const timeOptions = TIME_OPTIONS.some(o => o.value === String(selectedTime))
+    ? TIME_OPTIONS
+    : [...TIME_OPTIONS, { value: String(selectedTime), label: formatTime(selectedTime) }]
+      .sort((a, b) => Number(a.value) - Number(b.value));
+  const originBikes = seriesValueAt(series, selectedTime, 'bikes_available');
+  // Docks matter at arrival, not departure. Arrivals past midnight fall on the
+  // next day, which this day-specific series doesn't cover, so they read as unknown.
+  const destDocks = result ? seriesValueAt(series, selectedTime + result.travel_minutes, 'docks_available') : null;
 
   return (
     <div className="commute-planner">
     {!commute && (
     <>
     <div className="commute-hero">
+    <div className="commute-hero-main">
     <h1>How reliable is your Citi Bike route?</h1>
     <p className="commute-subtitle">
       See the odds of finding a bike and an open dock before you leave — for any route, any day, any time.
@@ -332,7 +383,7 @@ export function CommutePlanner({ stations }: Props) {
               stations={stations}
               value={originId}
               onChange={setOriginId}
-              dotColor="#16181d"
+              dotColor={ROUTE_ORIGIN_COLOR}
               placeholder="Choose origin station…"
             />
           </div>
@@ -344,7 +395,7 @@ export function CommutePlanner({ stations }: Props) {
               stations={stations}
               value={destId}
               onChange={setDestId}
-              dotColor={probabilityToColor(0.95)}
+              dotColor={ROUTE_DEST_COLOR}
               placeholder="Choose destination…"
             />
           </div>
@@ -418,6 +469,8 @@ export function CommutePlanner({ stations }: Props) {
         </div>
       </div>
     </div>
+    <MapTeaser />
+    </div>
 
       {/* Patterns teaser: hidden until we have patterns to show
       <div className="patterns-teaser">
@@ -459,7 +512,6 @@ export function CommutePlanner({ stations }: Props) {
           {hasCommute && result && (
             <div className="forecast-headline">
               <div className="forecast-headline-top">
-                <div className="forecast-headline-eyebrow">Your commute forecast</div>
                 <div className="bike-type-toggle mode-toggle-track">
                   <button
                     className={`mode-toggle-btn${bikeType === 'ebike' ? ' active' : ''}`}
@@ -487,7 +539,7 @@ export function CommutePlanner({ stations }: Props) {
                 <span style={{ whiteSpace: 'nowrap' }}>
                   <InlineSelect
                     value={String(selectedTime)}
-                    options={TIME_OPTIONS}
+                    options={timeOptions}
                     onChange={v => setTime(Number(v))}
                     ariaLabel="Time of day"
                   />,
@@ -508,6 +560,16 @@ export function CommutePlanner({ stations }: Props) {
 
           {loading && <div className="loading">Calculating forecast…</div>}
 
+          <CommuteRouteMap
+            origin={stations.find(s => s.station_id === commute.originId)}
+            dest={stations.find(s => s.station_id === commute.destId)}
+            originBikes={originBikes}
+            destDocks={destDocks}
+            departMinute={selectedTime}
+            arriveMinute={selectedTime + (result?.travel_minutes ?? 0)}
+            bikeNoun={bikeType === 'ebike' ? ['e-bike', 'e-bikes'] : ['bike', 'bikes']}
+          />
+
           {/* TODO: mini maps hidden 2026-09-07, user wasn't happy with how they looked. Flip to re-enable. */}
           {SHOW_MINIMAPS && (
             <div className="commute-minimap-row">
@@ -526,10 +588,16 @@ export function CommutePlanner({ stations }: Props) {
             </div>
           )}
 
-          {matrix && <CommuteMatrix matrix={matrix} />}
-
           {hasCommute && result && matrixFine && (
-            <CommuteWindowBars matrix={matrixFine} bikeLabel={bikeLabel} />
+            <CommuteWeekView matrix={matrixFine} bikeLabel={bikeLabel} />
+          )}
+
+          {/* Full 24h heatmap, collapsed: the week view above covers the commute windows. */}
+          {matrix && (
+            <details className="card commute-allhours">
+              <summary>See all hours <span>· the full 24-hour × 7-day heatmap</span></summary>
+              <CommuteMatrix matrix={matrix} />
+            </details>
           )}
         </>
       )}

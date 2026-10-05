@@ -3,12 +3,12 @@ import { ProbabilityRibbon } from '../charts/ProbabilityRibbon';
 import { StackedAreaChart } from '../charts/StackedAreaChart';
 import { useStationInfo } from '../../hooks/useStationInfo';
 import { useStore, METRIC_TO_API } from '../../store';
-import { probabilityToColor, fmtPct } from '../../utils/colorScale';
+import { probabilityToColor, fmtPct, SCALE_FLOOR } from '../../utils/colorScale';
 import { api } from '../../api/client';
 import { COMMUTE_WINDOWS, averageInWindow, formatTime } from '../../utils/time';
 import type { BulkMapData, DayOfWeek } from '../../types';
 
-const SCALE_DOTS = [0, 0.5, 1].map(v => probabilityToColor(v));
+const SCALE_DOTS = [SCALE_FLOOR, (SCALE_FLOOR + 1) / 2, 1].map(v => probabilityToColor(v));
 const [AM_WINDOW, PM_WINDOW] = COMMUTE_WINDOWS;
 
 // "Probability by hour" always summarizes Mon–Fri, independent of whatever

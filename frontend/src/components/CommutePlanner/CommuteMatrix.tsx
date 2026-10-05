@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../store';
-import { probabilityToColor } from '../../utils/colorScale';
+import { probabilityToColor, SCALE_FLOOR } from '../../utils/colorScale';
 import { DAYS_FULL, COMMUTE_WINDOWS } from '../../utils/time';
 import type { CommuteMatrixResponse } from '../../types';
 
@@ -236,7 +236,7 @@ export function CommuteMatrix({ matrix }: Props) {
             : 'Click a cell to see that day and time below'}
         </div>
         <div className="scale-hint">
-          {[0, 0.5, 1].map(v => (
+          {[SCALE_FLOOR, (SCALE_FLOOR + 1) / 2, 1].map(v => (
             <div key={v} style={{ width: 10, height: 10, borderRadius: '50%', background: probabilityToColor(v) }} />
           ))}
           <span>Pink means scarce, blue means plentiful</span>
