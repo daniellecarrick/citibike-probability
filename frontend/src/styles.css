@@ -1474,11 +1474,12 @@ h1 {
 }
 .commute-hero-main h1 { margin: 0; font-size: clamp(40px, 4.4vw, 56px); line-height: 1.1; }
 
-/* Desktop: planner takes ⅔, map teaser ⅓. Stacks at ≤768px (see below). */
+/* Desktop: map teaser on the left ⅓, planner on the right ⅔. Stacks at
+   ≤768px (see below), where the planner stays first. */
 @media (min-width: 769px) {
   .commute-hero {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
     align-items: center;
     gap: 40px;
     max-width: 1280px;
@@ -1487,7 +1488,7 @@ h1 {
   .commute-hero-main h1,
   .commute-hero-main .commute-subtitle { text-align: left; }
   .commute-hero-main .commute-subtitle { margin-bottom: 20px; }
-  .map-teaser { height: min(560px, 70vh); }
+  .map-teaser { height: min(560px, 70vh); order: -1; }
 }
 .map-teaser {
   position: relative;
