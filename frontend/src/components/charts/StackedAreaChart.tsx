@@ -3,6 +3,7 @@
  * count. Each layer's values are stacked on top of the ones before it.
  */
 import { useRef, useState } from 'react';
+import { useChartPointer } from '../../hooks/useChartPointer';
 
 interface Layer {
   label: string;
@@ -59,16 +60,18 @@ export function StackedAreaChart({ layers, width = 340, height = 110, percentMod
     return `${top} ${bottom} Z`;
   }
 
-  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+  function hoverAt(clientX: number) {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect || slotCount === 0) return;
-    const svgX = (e.clientX - rect.left) * (width / rect.width);
+    const svgX = (clientX - rect.left) * (width / rect.width);
     const slot = Math.max(0, Math.min(
       slotCount - 1,
       Math.round(((Math.max(PAD.l, Math.min(PAD.l + W, svgX)) - PAD.l) / W) * (slotCount - 1)),
     ));
     setHoverSlot(slot);
   }
+
+  const pointer = useChartPointer({ onHover: x => hoverAt(x), onLeave: () => setHoverSlot(null), persistOnTouch: true });
 
   const yTicks = percentMode ? [0, 50, 100] : [0, Math.round(yDomainMax / 2), yDomainMax];
   const hoverX = hoverSlot !== null ? xAt(hoverSlot) : null;
@@ -95,9 +98,8 @@ export function StackedAreaChart({ layers, width = 340, height = 110, percentMod
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoverSlot(null)}
-        style={{ cursor: 'crosshair' }}
+        {...pointer}
+        style={{ cursor: 'crosshair', touchAction: 'pan-y', display: 'block' }}
       >
         {/* Gridlines */}
         {yTicks.map(v => {

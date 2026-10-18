@@ -15,11 +15,15 @@ export function CommuteRouteBar({ stations }: Props) {
   return (
     <div className="route-bar">
       <div className="route-bar-route">
-        <span className="route-bar-dot route-bar-dot-origin" />
-        <span className="route-bar-station">{origin?.station_name ?? 'Origin'}</span>
+        <span className="route-bar-leg">
+          <span className="route-bar-dot route-bar-dot-origin" />
+          <span className="route-bar-station">{origin?.station_name ?? 'Origin'}</span>
+        </span>
         <span className="route-bar-sep" aria-hidden="true">→</span>
-        <span className="route-bar-dot route-bar-dot-dest" />
-        <span className="route-bar-station">{dest?.station_name ?? 'Destination'}</span>
+        <span className="route-bar-leg">
+          <span className="route-bar-dot route-bar-dot-dest" />
+          <span className="route-bar-station">{dest?.station_name ?? 'Destination'}</span>
+        </span>
       </div>
       <button
         className="route-bar-switch"
@@ -27,7 +31,7 @@ export function CommuteRouteBar({ stations }: Props) {
         aria-label="Swap origin and destination"
         title="Swap origin and destination"
       >
-        ⇄
+        <span aria-hidden="true">⇄</span>
       </button>
       <button className="route-bar-edit" onClick={() => setCommute(null)}>Edit</button>
     </div>

@@ -15,9 +15,14 @@ const HIT_LAYER     = 'station-hits';
 
 interface Props {
   data: StationProbability[];
+  /** Phone layout: compact attribution and a locate-me button. */
+  compactControls?: boolean;
 }
 
-export function StationMap({ data }: Props) {
+/** Touch screens synthesize mouseenter on tap, which would pop the desktop hover tooltip. */
+const canHover = () => typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover)').matches;
+
+export function StationMap({ data, compactControls = false }: Props) {
   const mapContainer   = useRef<HTMLDivElement>(null);
   const map            = useRef<mapboxgl.Map | null>(null);
   const tooltipRef     = useRef<HTMLDivElement>(null);
@@ -33,7 +38,17 @@ export function StationMap({ data }: Props) {
       style: 'mapbox://styles/mapbox/light-v11',
       center: [-73.98, 40.75],
       zoom: 12,
+      attributionControl: !compactControls,
     });
+
+    if (compactControls) {
+      map.current.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left');
+      map.current.addControl(new mapboxgl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: false,
+        showUserLocation: true,
+      }), 'bottom-right');
+    }
 
     map.current.on('load', () => {
       const m = map.current!;
@@ -84,7 +99,7 @@ export function StationMap({ data }: Props) {
       });
 
       const showTooltip = (props: Record<string, unknown> | null | undefined) => {
-        if (props) setHoveredStation({ id: String(props.station_id), name: String(props.station_name) });
+        if (props && canHover()) setHoveredStation({ id: String(props.station_id), name: String(props.station_name) });
       };
       const moveTooltip = (e: MouseEvent) => {
         if (!tooltipRef.current) return;
@@ -112,7 +127,7 @@ export function StationMap({ data }: Props) {
       map.current = null;
       setMapLoaded(false);
     };
-  }, [selectStation]);
+  }, [selectStation, compactControls]);
 
   // Auto-zoom to user location once map is ready (fires after StrictMode remount settles)
   useEffect(() => {

@@ -19,11 +19,22 @@ vi.mock('mapbox-gl', () => {
         fitBounds: mockFitBounds,
         remove: mockRemove,
         isStyleLoaded: vi.fn(() => true),
+        addControl: vi.fn(),
       };
     }),
     accessToken: '',
     LngLatBounds: vi.fn(function LngLatBoundsMock() {
       return { extend: vi.fn() };
+    }),
+    NavigationControl: vi.fn(function NavigationControlMock() { return {}; }),
+    GeolocateControl: vi.fn(function GeolocateControlMock() { return {}; }),
+    AttributionControl: vi.fn(function AttributionControlMock() { return {}; }),
+    Marker: vi.fn(function MarkerMock() {
+      return {
+        setLngLat: vi.fn().mockReturnThis(),
+        addTo: vi.fn().mockReturnThis(),
+        remove: vi.fn(),
+      };
     }),
     Popup: vi.fn(function PopupMock() {
       return {

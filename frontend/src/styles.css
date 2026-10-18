@@ -59,8 +59,13 @@ body {
   color: var(--ink);
   background: var(--app-bg);
   -webkit-font-smoothing: antialiased;
+  /* Stop iOS from inflating text in landscape. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 button { cursor: pointer; font-family: inherit; }
+/* No double-tap-to-zoom delay on controls. */
+button, a, select, input, summary, [role="button"] { touch-action: manipulation; }
 h1 {
   color: var(--text-strong);
   font-family: var(--sans);
@@ -204,6 +209,7 @@ h1 {
 }
 .nav-btn:hover { opacity: 1; text-decoration: underline; }
 .nav-btn.active { opacity: 1; font-weight: 700; }
+.nav-btn-icon { display: none; }
 
 /* ─── Methodology modal ─────────────────────────────────────────── */
 .methodology-backdrop {
@@ -421,6 +427,60 @@ h1 {
 .commute-minimap-canvas {
   width: 100%;
   height: 180px;
+}
+
+/* Commute route map: origin + destination only, with typical counts. */
+.route-map-card { width: 100%; max-width: 1000px; padding: 0; overflow: hidden; }
+.route-map-canvas { width: 100%; height: 320px; }
+.route-map-footnote {
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--card-border);
+}
+.route-map-marker { position: relative; width: 14px; height: 14px; }
+.route-map-marker-dot {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(20,24,40,.3);
+}
+.route-map-marker-label {
+  position: absolute;
+  left: 20px; top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  background: #fff;
+  border-radius: var(--r-sm);
+  padding: 5px 9px;
+  box-shadow: var(--shadow-float);
+  pointer-events: none;
+}
+.route-map-marker-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.route-map-marker-stat { font-size: 12px; font-weight: 400; margin-top: 1px; }
+/* Station facts listed under the map; only shown on phones, where the
+   on-map labels are hidden because they don't fit. */
+.route-map-legend { display: none; list-style: none; }
+@media (max-width: 640px) {
+  .route-map-canvas { height: 240px; }
+  .route-map-marker-label { display: none; }
+  .route-map-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px 4px;
+  }
+  .route-map-legend li { display: flex; align-items: flex-start; gap: 10px; }
+  .route-map-legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px #fff, 0 1px 3px rgba(20,24,40,.3);
+  }
+  .route-map-legend-name { display: block; font-size: 14px; font-weight: 600; color: var(--ink); }
+  .route-map-legend-stat { display: block; font-size: 14px; color: var(--text-muted); }
+  .route-map-footnote { border-top: none; padding-top: 6px; }
 }
 
 /* ─── Cards ─────────────────────────────────────────────────────── */
@@ -1029,6 +1089,52 @@ h1 {
 }
 
 /* ─── Chart hover tooltip (shared by matrix/line charts) ─────────── */
+/* Commute week view: 7-day × AM/PM scorecard + zoom chart */
+.week-glance, .window-zoom, .commute-allhours { width: 100%; max-width: 1000px; }
+.week-glance-sub { font-size: 13px; color: var(--text-muted); margin: -8px 0 16px; }
+.week-grid { display: grid; gap: 6px; }
+.week-grid-mobile { grid-template-columns: 40px 1fr 1fr; }
+.week-grid-colhead { text-align: center; padding-bottom: 2px; }
+.week-grid-rowhead { display: flex; flex-direction: column; justify-content: center; }
+.week-grid-day { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+.week-grid-day.weekend { color: var(--text-faint); }
+.week-grid-window { font-size: 13px; font-weight: 600; color: var(--ink); }
+.week-grid-window span { font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--text-faint); margin-top: 2px; }
+.week-grid-colhead.week-grid-window span { margin-left: 4px; }
+.week-tile {
+  appearance: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px;
+  padding: 10px 10px 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  transition: border-color .12s;
+}
+.week-tile:hover { border-color: var(--text-faint); }
+.week-tile:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.week-tile.selected { border: 2px solid var(--ink); padding: 9px 9px 7px; }
+.week-tile.weekend { opacity: .7; }
+.week-tile-pct { font-family: var(--serif); font-size: 26px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.week-tile-hint { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.week-tile-strip { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 2px; }
+.week-tile-strip i { flex: 1; }
+.week-glance .scale-hint { margin-top: 14px; }
+
+.window-zoom-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.window-zoom-legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-muted); align-items: center; flex-wrap: wrap; }
+.window-zoom-swatch { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.window-zoom-swatch-day { background: linear-gradient(90deg, var(--scale-0), var(--scale-5), var(--scale-1)); }
+.window-zoom-swatch-peer { background: #c9ced6; }
+.window-zoom-svg { display: block; width: 100%; height: auto; }
+.window-zoom-foot { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+.commute-allhours > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+  font-weight: 600; font-size: 14px; color: var(--ink);
+}
+.commute-allhours > summary::-webkit-details-marker { display: none; }
+.commute-allhours > summary::before { content: '▸'; color: var(--text-faint); transition: transform .15s; }
+.commute-allhours[open] > summary::before { transform: rotate(90deg); }
+.commute-allhours > summary span { font-weight: 400; color: var(--text-muted); font-size: 13px; }
+.commute-allhours .commute-matrix { border: none; box-shadow: none; padding: 0; margin-top: 16px; max-width: none; }
+
 .chart-hover-tooltip {
   position: fixed;
   z-index: 60;
@@ -1235,7 +1341,7 @@ h1 {
 .scrubber-gradient-bar {
   width: 80px; height: 6px;
   border-radius: 3px;
-  background: linear-gradient(to right, #ff2d78, #8b3df5, #1fa2ff);
+  background: linear-gradient(to right, #ff2d78 50%, #8b3df5 75%, #1fa2ff);
 }
 .play-btn {
   width: 42px; height: 42px;
@@ -1384,6 +1490,93 @@ h1 {
   justify-content: center;
   gap: 24px;
 }
+.commute-hero-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  min-width: 0;
+}
+.commute-hero-main h1 { margin: 0; font-size: clamp(40px, 4.4vw, 56px); line-height: 1.1; }
+
+/* Desktop: map teaser on the left ⅓, planner on the right ⅔. Stacks at
+   ≤768px (see below), where the planner stays first. */
+@media (min-width: 769px) {
+  .commute-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    /* Stretch so the map card's top and bottom line up with the headline
+       and the sample cards; the page container handles vertical centering. */
+    align-items: stretch;
+    gap: 40px;
+    max-width: 1280px;
+    min-height: 0;
+  }
+  .commute-hero-main { align-items: flex-start; }
+  .commute-hero-main h1,
+  .commute-hero-main .commute-subtitle { text-align: left; }
+  .commute-hero-main .commute-subtitle { margin-bottom: 20px; }
+  .map-teaser { order: -1; min-height: 360px; }
+  /* Sample/saved cards share the row's width; with more cards than fit,
+     they hold a minimum width and the row scrolls as before. */
+  .commute-hero-main .sample-commute-card { flex: 1 0 230px; width: auto; }
+}
+.map-teaser {
+  position: relative;
+  display: block;
+  width: 100%;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  background: var(--map-land);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-float);
+  text-decoration: none;
+  color: inherit;
+}
+.map-teaser img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .4s ease;
+}
+.map-teaser:hover img { transform: scale(1.03); }
+.map-teaser:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
+.map-teaser-cta {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  max-width: calc(100% - 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--card-bg);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 9px 14px;
+  box-shadow: var(--shadow-float);
+  transition: background .15s;
+}
+.map-teaser:hover .map-teaser-cta { background: var(--tint-blue); }
+.map-teaser-cta-title { font-size: 14px; font-weight: 600; }
+.map-teaser-cta-sub { font-size: 11.5px; color: var(--text-muted); }
+.map-teaser-credit {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 9px;
+  color: var(--text-muted);
+  background: rgba(255,255,255,.75);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-teaser img { transition: none; }
+}
+
 .commute-hero-subhead {
   text-align: center;
   color: var(--text-navy);
@@ -1425,10 +1618,11 @@ h1 {
   width: 8px; height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: #16181d;
+  background: #1fa2ff;
 }
-.route-bar-dot-dest { background: #1fa2ff; }
+.route-bar-dot-dest { background: #16181d; }
 .route-bar-sep { color: var(--text-faint); }
+.route-bar-leg { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .route-bar-station { white-space: nowrap; }
 .route-bar-meta {
   font-family: var(--mono);
@@ -1664,22 +1858,141 @@ h1 {
 /* ─── Mobile Layout ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
 
-  /* ── Planner card (Commute page): origin + dest each on their own
-     line, with the swap button sharing a row with the CTA ─────────── */
-  .planner-card { padding: 16px; }
+  :root {
+    --gutter: 16px;
+    --tap: 44px;
+    --header-h: calc(60px + env(safe-area-inset-top));
+    --route-bar-h: 52px;
+  }
+
+  /* ── App shell ─────────────────────────────────────────────────
+     Document routes scroll the page itself, not an inner container, so
+     Safari can collapse its toolbars and tap-the-status-bar works. The
+     map route stays a fixed-height screen sized to the visible viewport. */
+  .app.app-scroll { height: auto; min-height: 100vh; min-height: 100dvh; }
+  .app.app-fixed  { height: 100vh; height: 100dvh; }
+  .app-scroll .page-container,
+  .app-scroll .admin-container {
+    flex: none;
+    overflow: visible;
+    gap: 16px;
+    padding: 16px calc(var(--gutter) + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(var(--gutter) + env(safe-area-inset-left));
+  }
+
+  /* ── Header: sticky, segmented Commute | Map, ⓘ for methodology ─ */
+  .header {
+    position: sticky;
+    top: 0;
+    height: var(--header-h);
+    min-height: 0;
+    padding: env(safe-area-inset-top) calc(var(--gutter) + env(safe-area-inset-right)) 0 calc(var(--gutter) + env(safe-area-inset-left));
+    gap: 8px;
+    flex-wrap: nowrap;
+    background: var(--app-bg);
+  }
+  .logo-wordmark { display: none; }
+  .header-tabs {
+    align-self: center;
+    margin-left: 0;
+    gap: 2px;
+    padding: 2px;
+    background: var(--control-track);
+    border-radius: 12px;
+  }
+  .header-tab {
+    height: var(--tap);
+    padding: 0 20px;
+    border-bottom: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .header-tab.active {
+    background: var(--card-bg);
+    color: var(--ink);
+    box-shadow: 0 1px 3px rgba(20,24,40,.12);
+  }
+  .header-nav { gap: 0; }
+  .nav-btn-admin { display: none; }
+  .nav-btn-methodology {
+    width: var(--tap);
+    height: var(--tap);
+    margin-right: -10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    opacity: 1;
+    color: var(--text-muted);
+  }
+  .nav-btn-methodology:hover { text-decoration: none; }
+  .nav-btn-methodology:active { background: var(--control-track); }
+  .nav-btn-label { display: none; }
+  .nav-btn-icon { display: block; }
+
+  /* ── Route bar: sticks under the header ─────────────────────── */
+  .route-bar {
+    position: sticky;
+    top: var(--header-h);
+    height: var(--route-bar-h);
+    padding: 0 calc(var(--gutter) - 6px + env(safe-area-inset-right)) 0 calc(var(--gutter) + env(safe-area-inset-left));
+    gap: 2px;
+  }
+  /* Origin over destination, so each name gets the full width. */
+  .route-bar-route {
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+  .route-bar-leg { gap: 8px; }
+  .route-bar-station { overflow: hidden; text-overflow: ellipsis; }
+  .route-bar-sep { display: none; }
+  .route-bar-switch,
+  .route-bar-edit {
+    flex-shrink: 0;
+    height: var(--tap);
+    border: none;
+    border-radius: 10px;
+    color: var(--accent-blue-deep);
+  }
+  .route-bar-switch { margin-left: 4px; width: var(--tap); font-size: 18px; }
+  .route-bar-edit { padding: 0 10px; font-size: 15px; font-weight: 600; }
+  .route-bar-switch:active,
+  .route-bar-edit:active { background: var(--control-track); }
+
+  /* ── Cards: one gutter, not card padding + page padding ─────── */
+  .card { padding: 18px 16px; }
+  .route-map-card { padding: 0; }
+  .card-title { font-size: 21px; line-height: 1.2; }
+
+  /* ── Commute landing ─────────────────────────────────────────── */
+  .commute-hero { min-height: 0; gap: 20px; }
+  .commute-hero-main { gap: 16px; }
+  .commute-hero-main h1 { font-size: 34px; line-height: 1.1; letter-spacing: -0.01em; }
+  .commute-subtitle {
+    font-size: 17px;
+    line-height: 1.4;
+    margin: -6px 0 4px;
+  }
+  .planner-card { padding: 12px; }
   .planner-input-row {
     flex-wrap: wrap;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
   }
   .planner-combo-origin,
-  .planner-combo-dest {
-    flex-basis: 100%;
-  }
+  .planner-combo-dest { flex-basis: 100%; }
   .planner-combo-origin { order: 1; }
   .planner-combo-dest { order: 2; }
   .planner-arrow-btn {
     order: 3;
+    width: 52px;
+    height: 52px;
     transform: rotate(90deg);
   }
   .planner-arrow-btn .arrow-icon { transform: none; }
@@ -1687,9 +2000,128 @@ h1 {
     order: 4;
     flex: 1;
     width: auto;
+    height: 52px;
+    font-size: 16px;
   }
+  .station-combo { height: 56px; }
+  .station-combo-hood { font-size: 11px; }
+  .station-combo-placeholder { font-size: 16px; }
 
-  /* Map container fills the space below the header */
+  /* Sample/saved cards: swipeable, snap to each card, with the next one
+     peeking in so the row reads as scrollable. Bleed to the screen edge. */
+  .commute-cards-row {
+    margin: 0 calc(-1 * var(--gutter));
+    padding: 2px var(--gutter);
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 var(--gutter);
+    scroll-behavior: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .commute-cards-fade { display: none; }
+  .sample-commute-card {
+    flex: 0 0 84%;
+    width: 84%;
+    scroll-snap-align: start;
+    padding: 14px;
+  }
+  .sample-commute-card:active { background: var(--control-track); }
+  .sample-commute-label { font-size: 15px; }
+  .sample-commute-route { font-size: 12px; }
+  .commute-card-badge { font-size: 10px; }
+  .map-teaser { height: 200px; }
+  .map-teaser img { object-position: center 45%; }
+  .map-teaser-cta-title { font-size: 15px; }
+  .map-teaser-cta-sub { font-size: 13px; }
+
+  /* ── Commute results ─────────────────────────────────────────── */
+  .commute-planner { gap: 16px; }
+  .commute-planner > .forecast-headline {
+    display: flex;
+    flex-direction: column;
+    margin: 8px 0 4px;
+  }
+  .forecast-headline-top { order: 3; margin: 16px 0 0; }
+  .bike-type-toggle { flex: 1; }
+  .bike-type-toggle .mode-toggle-btn { flex: 1; height: var(--tap); font-size: 14px; justify-content: center; }
+  .forecast-mobile-title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: left;
+    font-size: inherit;
+  }
+  .forecast-mobile-pct {
+    font-family: var(--serif);
+    font-size: 76px;
+    font-weight: 600;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .forecast-mobile-caption {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--text-muted);
+  }
+  .forecast-mobile-when { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip-select-wrap { position: relative; display: inline-flex; }
+  .chip-select {
+    appearance: none;
+    -webkit-appearance: none;
+    height: var(--tap);
+    padding: 0 38px 0 16px;
+    border: 1px solid var(--input-border);
+    border-radius: 22px;
+    background: var(--card-bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 600;
+    box-shadow: var(--shadow-card);
+  }
+  .chip-select:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+  .chip-select-caret {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .data-warning-banner { font-size: 14px; }
+  .data-warning-link { display: inline-block; padding: 10px 0; }
+
+  .week-glance-sub { font-size: 14px; margin: -6px 0 14px; }
+  .week-grid-mobile { grid-template-columns: 36px 1fr 1fr; }
+  .week-grid-day { font-size: 12px; }
+  .week-grid-window { font-size: 14px; }
+  .week-grid-window span { font-size: 11px; }
+  .week-tile { min-height: 76px; }
+  .week-tile-hint { font-size: 12px; }
+  .window-zoom-legend { font-size: 13px; margin: -6px 0 6px; }
+  .window-zoom-foot,
+  .commute-matrix-hint,
+  .scale-hint { font-size: 13px; }
+  .matrix-context { font-size: 14px; }
+
+  .commute-allhours > summary {
+    flex-wrap: wrap;
+    min-height: var(--tap);
+    font-size: 16px;
+    row-gap: 0;
+  }
+  .commute-allhours > summary span { flex-basis: 100%; padding-left: 18px; font-size: 13px; }
+  .commute-allhours .commute-matrix { margin-top: 8px; }
+
+  .availability-chart-legend { flex-direction: column; gap: 6px; }
+  .availability-legend-item { font-size: 14px; }
+
+  .chart-hover-tooltip { min-width: 0; }
+  .chart-tooltip-title { font-size: 11px; }
+  .chart-tooltip-row { font-size: 13px; }
+
+  /* ── Map screen ──────────────────────────────────────────────── */
   .mobile-app-body {
     position: relative;
     flex: 1;
@@ -1700,94 +2132,205 @@ h1 {
     width: 100%;
     height: 100%;
   }
+  .mobile-app-body .mapboxgl-ctrl-group button { width: var(--tap); height: var(--tap); }
+  .mobile-app-body .mapboxgl-ctrl-bottom-right { margin-bottom: env(safe-area-inset-bottom); }
+  .mobile-app-body .mapboxgl-ctrl-bottom-left { margin-bottom: env(safe-area-inset-bottom); }
 
-  /* ── Filter FAB (top-right, positioned within the map area so it never
-     overlaps the header) ─────────────────────────────────────────── */
-  .mobile-filter-wrap {
+  .mobile-map-toolbar {
     position: absolute;
-    top: 16px;
-    right: calc(16px + env(safe-area-inset-right));
+    top: 12px;
+    left: calc(12px + env(safe-area-inset-left));
+    right: calc(12px + env(safe-area-inset-right));
     z-index: 190;
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 10px;
+    gap: 8px;
   }
-
-  .mobile-filter-btn {
-    width: 44px;
-    height: 44px;
+  .mobile-map-status,
+  .mobile-map-search {
+    height: var(--tap);
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    color: var(--ink);
+    box-shadow: var(--shadow-scrub);
+  }
+  .mobile-map-status {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 16px;
+    border-radius: 22px;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .mobile-map-status-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mobile-map-status-metric { font-weight: 700; }
+  .mobile-map-status-sep { margin: 0 6px; color: var(--text-faint); }
+  .mobile-map-search {
+    width: var(--tap);
+    flex-shrink: 0;
     border-radius: 50%;
-    border: none;
-    background: var(--ink);
-    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: var(--shadow-scrub);
-    transition: background .15s;
   }
-  .mobile-filter-btn.active { background: #3a3f4b; }
+  .mobile-map-status:active,
+  .mobile-map-search:active { background: var(--control-track); }
 
-  .mobile-filter-backdrop {
+  .mobile-map-legend {
+    position: absolute;
+    top: 64px;
+    left: calc(12px + env(safe-area-inset-left));
+    z-index: 189;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.92);
+    box-shadow: var(--shadow-float);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .mobile-map-legend-bar {
+    width: 64px;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right, var(--scale-0) 0%, var(--scale-5) 50%, var(--scale-1) 100%);
+  }
+
+  /* Filters: a bottom sheet with full-size controls */
+  .mobile-filter-sheet {
     position: fixed;
-    inset: 0;
-    z-index: -1;
-  }
-
-  .mobile-filter-panel {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: var(--r-card);
-    padding: 16px;
-    box-shadow: var(--shadow-scrub);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 201;
     display: flex;
     flex-direction: column;
     gap: 18px;
-    min-width: 220px;
-    animation: fadeIn .15s ease;
+    padding: 8px calc(var(--gutter) + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(var(--gutter) + env(safe-area-inset-left));
+    background: var(--card-bg);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 40px rgba(20,24,40,.18);
+    animation: sheetUp .28s cubic-bezier(.22, 1, .36, 1);
   }
-
+  .mobile-filter-sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--tap);
+  }
+  .mobile-filter-sheet-title { font-size: 17px; font-weight: 700; color: var(--ink); }
+  .mobile-filter-done {
+    height: var(--tap);
+    margin-right: -10px;
+    padding: 0 10px;
+    border: none;
+    background: none;
+    color: var(--accent-blue-deep);
+    font-size: 16px;
+    font-weight: 600;
+  }
   .mobile-filter-section { display: flex; flex-direction: column; gap: 8px; }
+  .mobile-filter-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .mobile-filter-track { padding: 3px; border-radius: 12px; }
+  .mobile-filter-track .mode-toggle-btn,
+  .mobile-filter-track .day-pill {
+    flex: 1;
+    height: var(--tap);
+    padding: 0;
+    border-radius: 9px;
+    font-size: 15px;
+  }
+  .mobile-filter-time-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .mobile-filter-time-value { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--ink); }
+  .mobile-time-control { display: flex; align-items: flex-start; gap: 10px; }
+  .mobile-time-range-wrap { flex: 1; min-width: 0; }
+  .mobile-time-step {
+    flex-shrink: 0;
+    width: 52px;
+    height: var(--tap);
+    border: 1px solid var(--input-border);
+    border-radius: 12px;
+    background: var(--card-bg);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .mobile-time-step:active { background: var(--control-track); }
 
+  /* Time slider: 44px tall touch area, 6px track, 28px thumb */
+  .mobile-time-range {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+    height: var(--tap);
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .mobile-time-range:focus { outline: none; }
+  .mobile-time-range::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--control-track);
+  }
+  .mobile-time-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 28px;
+    height: 28px;
+    margin-top: -11px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    background: var(--ink);
+    box-shadow: 0 1px 4px rgba(20,24,40,.3);
+  }
+  .mobile-time-range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--control-track); }
+  .mobile-time-range::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    background: var(--ink);
+    box-shadow: 0 1px 4px rgba(20,24,40,.3);
+  }
+  .mobile-time-range:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+  .mobile-time-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: -6px;
+    padding: 0 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+  }
   .mobile-methodology-link {
     align-self: flex-start;
+    min-height: var(--tap);
     border: none;
     background: none;
     padding: 0;
     font-family: var(--sans);
-    font-size: 12px;
+    font-size: 15px;
     font-weight: 600;
     color: var(--text-muted);
     text-decoration: underline;
   }
 
-  .mobile-filter-label {
-    font-family: var(--mono);
-    font-size: 9px;
-    color: var(--text-faint);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  /* Time range slider */
-  .mobile-time-range {
-    width: 100%;
-    accent-color: var(--ink);
-    height: 4px;
-    cursor: pointer;
-  }
-
-  .mobile-time-ticks {
-    display: flex;
-    justify-content: space-between;
-    font-family: var(--mono);
-    font-size: 9px;
-    color: var(--text-faint);
-    margin-top: 2px;
-  }
-
-  /* ── Bottom sheet ────────────────────────────────────────────── */
+  /* ── Station bottom sheet (draggable) ────────────────────────── */
   .mobile-sheet-backdrop {
     position: fixed;
     inset: 0;
@@ -1795,116 +2338,95 @@ h1 {
     z-index: 199;
     animation: fadeIn .2s ease;
   }
+  .mobile-filter-backdrop { z-index: 200; }
 
   .mobile-sheet {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 75dvh;
     background: var(--card-bg);
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -8px 40px rgba(20, 24, 40, .18);
-    transform: translateY(100%);
-    transition: transform .35s cubic-bezier(.22, 1, .36, 1);
+    transform: translateY(110%);
+    transition: transform .35s cubic-bezier(.22, 1, .36, 1), height .3s cubic-bezier(.22, 1, .36, 1);
     z-index: 200;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     padding-bottom: env(safe-area-inset-bottom);
   }
-
   .mobile-sheet.open { transform: translateY(0); }
+  .mobile-sheet.dragging { transition: none; }
 
   .mobile-sheet-header {
-    display: flex;
-    align-items: center;
-    padding: 0 12px 0 4px;
-    border-bottom: 1px solid var(--card-border);
-    flex-shrink: 0;
     position: relative;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    height: var(--tap);
+    padding: 0 4px;
+    touch-action: none;
+    cursor: grab;
   }
-
   .mobile-handle-bar {
     position: absolute;
-    top: 8px;
+    top: 0;
     left: 50%;
     transform: translateX(-50%);
-    pointer-events: none;
-  }
-
-  .mobile-sheet-handle {
-    width: 36px;
-    height: 4px;
-    background: var(--hairline);
-    border-radius: 2px;
-  }
-
-  .mobile-sheet-title {
-    flex: 1;
-    padding-top: 14px;
-    padding-left: 8px;
-    font-family: var(--sans);
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--ink);
-  }
-
-  .mobile-sheet-close {
-    width: 30px;
-    height: 30px;
+    width: 140px;
+    height: var(--tap);
     border: none;
-    background: var(--control-track);
+    background: none;
+    display: flex;
+    justify-content: center;
+    padding-top: 8px;
+  }
+  .mobile-sheet-handle {
+    width: 40px;
+    height: 5px;
+    background: var(--hairline);
+    border-radius: 3px;
+  }
+  .mobile-sheet-close {
+    position: relative;
+    z-index: 1;
+    width: var(--tap);
+    height: var(--tap);
+    margin-top: 4px;
+    border: none;
+    background: radial-gradient(circle, var(--control-track) 15px, transparent 16px);
     border-radius: 50%;
     color: var(--text-muted);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    margin-left: 4px;
   }
 
-  /* Station selector trigger row */
-  .mobile-station-selector-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--card-border);
-    background: var(--rail-bg);
-    border: none;
-    width: 100%;
-    cursor: pointer;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .mobile-station-selector-value {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: left;
-    flex: 1;
-  }
-
-  /* Scrollable sheet body */
   .mobile-sheet-body {
     flex: 1;
     overflow-y: auto;
+    overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 14px 14px;
+    padding-bottom: 16px;
   }
-
-  /* Clip any fixed-width chart overflow */
+  .mobile-sheet-body .station-sticky-header { background: var(--card-bg); padding: 0 16px 12px; }
+  .mobile-sheet-body .station-hood-eyebrow { font-size: 11px; }
+  .mobile-sheet-body .station-name { font-size: 24px; }
+  .mobile-sheet-body .station-status-badge { font-size: 11px; }
   .mobile-sheet-body .detail-section { overflow: hidden; }
+  .mobile-sheet-body .detail-section-title { font-size: 14px; }
+  .mobile-sheet-body .commute-headline { font-size: 16px; }
+  .mobile-sheet-body .commute-subheadline,
+  .mobile-sheet-body .commute-body { font-size: 14px; }
+  .mobile-sheet-body .commute-window-heading { font-size: 15px; }
+  .mobile-sheet-body .commute-window-range { font-size: 12px; }
 
-  /* ── Station search modal ────────────────────────────────────── */
+  /* ── Station search (full screen) ────────────────────────────── */
   .mobile-selector-modal {
     position: fixed;
     inset: 0;
@@ -1915,87 +2437,115 @@ h1 {
     padding-top: env(safe-area-inset-top);
     animation: fadeIn .15s ease;
   }
-
   .mobile-selector-search-bar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
+    gap: 6px;
+    padding: 10px calc(var(--gutter) - 8px + env(safe-area-inset-right)) 10px calc(var(--gutter) + env(safe-area-inset-left));
     border-bottom: 1px solid var(--card-border);
     flex-shrink: 0;
   }
-
+  .mobile-selector-input-wrap { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+  .mobile-selector-dot {
+    position: absolute;
+    left: 14px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .mobile-selector-dot + .mobile-selector-input { padding-left: 34px; }
   .mobile-selector-input {
     flex: 1;
-    height: 42px;
+    min-width: 0;
+    height: var(--tap);
     border: 1px solid var(--input-border);
     border-radius: var(--r-input);
     padding: 0 12px;
     font-family: var(--sans);
-    font-size: 15px;
+    /* ≥16px or iOS zooms the page on focus */
+    font-size: 16px;
     color: var(--ink);
     background: var(--control-track);
+    -webkit-appearance: none;
+    appearance: none;
   }
-  .mobile-selector-input:focus { outline: none; border-color: var(--ink); }
-
+  .mobile-selector-input:focus { outline: none; border-color: var(--ink); background: var(--card-bg); }
   .mobile-selector-cancel {
+    height: var(--tap);
     border: none;
     background: none;
-    color: var(--ink);
+    color: var(--accent-blue-deep);
     font-family: var(--sans);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
-    padding: 8px 4px;
+    padding: 0 8px;
     white-space: nowrap;
   }
-
   .mobile-selector-list {
     flex: 1;
     overflow-y: auto;
+    overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom);
   }
-
   .mobile-selector-item {
-    padding: 14px 16px;
+    display: block;
+    width: 100%;
+    min-height: 56px;
+    padding: 12px calc(var(--gutter) + env(safe-area-inset-right)) 12px calc(var(--gutter) + env(safe-area-inset-left));
+    border: none;
     border-bottom: 1px solid var(--divider);
+    background: none;
+    text-align: left;
     cursor: pointer;
   }
-  .mobile-selector-item.active {
-    background: var(--control-track);
-  }
+  .mobile-selector-item.active,
   .mobile-selector-item:active { background: var(--control-track); }
-  .mobile-selector-item-name {
-    font-size: 14px;
-    color: var(--ink);
-  }
+  .mobile-selector-item-name { font-size: 16px; color: var(--ink); }
   .mobile-selector-item.active .mobile-selector-item-name { font-weight: 600; }
   .mobile-selector-item-hood {
     font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-faint);
-    letter-spacing: 0.04em;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
     margin-top: 2px;
   }
-
   .mobile-selector-empty {
     padding: 32px 16px;
     text-align: center;
     color: var(--text-faint);
-    font-size: 14px;
+    font-size: 15px;
   }
 
-  /* ── Compact top tab bar ─────────────────────────────────────── */
-  .header {
-    height: auto;
-    min-height: 52px;
-    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
-    gap: 10px;
-    flex-wrap: wrap;
+  /* ── Methodology: full-height bottom sheet ───────────────────── */
+  .methodology-backdrop { padding: 0; align-items: flex-end; }
+  .methodology-modal {
+    max-width: none;
+    max-height: calc(100dvh - 12px - env(safe-area-inset-top));
+    border-radius: 20px 20px 0 0;
+    animation: sheetUp .28s cubic-bezier(.22, 1, .36, 1);
   }
-  .logo-wordmark { display: none; }
-  .header-tabs { margin-left: 0; gap: 2px; }
-  .header-tab { padding: 6px 10px; font-size: 12px; }
-  .header-nav { gap: 4px; }
-  .nav-btn { padding: 4px 8px; font-size: 11px; }
+  .methodology-header { padding: 10px 6px 10px var(--gutter); }
+  .methodology-title { font-size: 20px; }
+  .methodology-close {
+    width: var(--tap);
+    height: var(--tap);
+    background: radial-gradient(circle, var(--control-track) 15px, transparent 16px);
+  }
+  .methodology-body { padding: 16px var(--gutter) calc(24px + env(safe-area-inset-bottom)); overscroll-behavior: contain; }
+  .methodology-section h3 { font-size: 15px; }
+  .methodology-section p { font-size: 15px; }
+  .methodology-formula { font-size: 13px; }
 
+  /* ── Admin ───────────────────────────────────────────────────── */
+  .admin-title { font-size: 24px; }
+  .poll-log { overflow-x: auto; }
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-sheet, .mobile-filter-sheet, .methodology-modal { transition: none; animation: none; }
 }

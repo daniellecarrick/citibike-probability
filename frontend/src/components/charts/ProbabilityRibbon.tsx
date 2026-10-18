@@ -6,6 +6,7 @@
  */
 import { useRef, useState } from 'react';
 import { probabilityToColor } from '../../utils/colorScale';
+import { useChartPointer } from '../../hooks/useChartPointer';
 import type { CommuteWindow } from '../../utils/time';
 
 interface Row {
@@ -55,14 +56,16 @@ export function ProbabilityRibbon({
   const rowY = (i: number) => AXIS_H + i * (rowHeight + ROW_GAP);
   const height = AXIS_H + rows.length * (rowHeight + ROW_GAP) - ROW_GAP + BOTTOM_H;
 
-  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+  function hoverAt(clientX: number) {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const svgX = (e.clientX - rect.left) * (width / rect.width);
+    const svgX = (clientX - rect.left) * (width / rect.width);
     if (svgX < PAD.l || svgX > PAD.l + totalW) { setHoverSlot(null); return; }
     const local = Math.max(0, Math.min(slots - 1, Math.floor((svgX - PAD.l) / segW)));
     setHoverSlot(w.startSlot + local);
   }
+
+  const pointer = useChartPointer({ onHover: x => hoverAt(x), onLeave: () => setHoverSlot(null), persistOnTouch: true });
 
   const hoverX = hoverSlot !== null ? xAt(hoverSlot - w.startSlot) : null;
 
@@ -79,9 +82,8 @@ export function ProbabilityRibbon({
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setHoverSlot(null)}
-      style={{ cursor: 'crosshair' }}
+      {...pointer}
+      style={{ cursor: 'crosshair', touchAction: 'pan-y', display: 'block' }}
     >
       {/* Hour ticks */}
       {Array.from({ length: slots / SLOTS_PER_HOUR + 1 }, (_, hi) => {
