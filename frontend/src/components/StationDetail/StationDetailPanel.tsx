@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { ProbabilityRibbon } from '../charts/ProbabilityRibbon';
 import { StackedAreaChart } from '../charts/StackedAreaChart';
 import { useStationInfo } from '../../hooks/useStationInfo';
+import { useElementWidth } from '../../hooks/useElementWidth';
 import { useStore, METRIC_TO_API } from '../../store';
 import { probabilityToColor, fmtPct, SCALE_FLOOR } from '../../utils/colorScale';
 import { api } from '../../api/client';
@@ -159,6 +160,9 @@ export function StationDetailPanel() {
 
   const { info, loading } = useStationInfo(selectedStationId);
   const commuteRef = useRef<HTMLDivElement>(null);
+  // Charts render at the panel's real width (the desktop rail is 480px; the
+  // mobile sheet is the phone's width), so they never clip or scale text.
+  const [chartBoxRef, chartWidth] = useElementWidth(412);
 
   useEffect(() => {
     if (focusCommute && commuteRef.current) {
@@ -178,7 +182,7 @@ export function StationDetailPanel() {
         </div>
         <div className="station-empty-headline">Select a station</div>
         <div className="station-empty-body">
-          Click any station on the map to see its details.
+          Tap any station on the map to see its details.
         </div>
       </div>
     );
@@ -236,14 +240,14 @@ export function StationDetailPanel() {
               {AM_WINDOW.label} <span className="commute-window-range">{formatTime(AM_WINDOW.startSlot * 5)}–{formatTime(AM_WINDOW.endSlot * 5)}</span>
             </div>
             <div className="commute-body">{fmtPct(amBike)} chance of a bike, {fmtPct(amDock)} chance of a dock.</div>
-            <div className="commute-ribbon">
+            <div className="commute-ribbon" ref={chartBoxRef}>
               <ProbabilityRibbon
                 window={AM_WINDOW}
                 rows={[
                   { label: 'BIKE', values: hourValues },
                   { label: 'DOCK', values: dockHourValues },
                 ]}
-                width={412}
+                width={chartWidth}
               />
             </div>
           </div>
@@ -260,7 +264,7 @@ export function StationDetailPanel() {
                   { label: 'BIKE', values: hourValues },
                   { label: 'DOCK', values: dockHourValues },
                 ]}
-                width={412}
+                width={chartWidth}
               />
             </div>
           </div>
@@ -276,7 +280,7 @@ export function StationDetailPanel() {
             { label: 'E-bike', color: '#2d5aff', values: ebikeSharePct },
             { label: 'Docks', color: '#aaaaaa', values: dockSharePct },
           ]}
-          width={412}
+          width={chartWidth}
           percentMode
         />
       </div>

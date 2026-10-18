@@ -27,6 +27,8 @@ vi.mock('mapbox-gl', () => {
       return { extend: vi.fn() };
     }),
     NavigationControl: vi.fn(function NavigationControlMock() { return {}; }),
+    GeolocateControl: vi.fn(function GeolocateControlMock() { return {}; }),
+    AttributionControl: vi.fn(function AttributionControlMock() { return {}; }),
     Marker: vi.fn(function MarkerMock() {
       return {
         setLngLat: vi.fn().mockReturnThis(),

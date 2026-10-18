@@ -44,9 +44,9 @@ function MobileMapView({ stations }: { stations: Station[] }) {
 
   return (
     <div className="mobile-app-body">
-      <StationMap data={currentMapData} />
-      <MobileFilterMenu />
-      <MobileBottomSheet stations={stations} />
+      <StationMap data={currentMapData} compactControls />
+      <MobileFilterMenu stations={stations} />
+      <MobileBottomSheet />
     </div>
   );
 }
@@ -69,8 +69,13 @@ function App() {
     api.stations.list().then(setStations).catch(console.error);
   }, [retryAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The map is a fixed-height app screen; every other route is a document
+  // that scrolls the page itself (so mobile browsers can collapse their
+  // toolbars and tap-the-status-bar scrolls to top).
+  const isMapRoute = location.pathname === '/map';
+
   return (
-    <div className="app">
+    <div className={`app${isMapRoute ? ' app-fixed' : ' app-scroll'}`}>
       <Header />
       {location.pathname === '/commute' && commute && <CommuteRouteBar stations={stations} />}
 

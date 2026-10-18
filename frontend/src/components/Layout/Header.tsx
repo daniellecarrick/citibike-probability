@@ -26,22 +26,30 @@ export function Header() {
       </div> */}
 
       {/* Tabs */}
-      <div className="header-tabs">
+      <nav className="header-tabs" aria-label="Sections">
         {TABS.map(t => (
           <button
             key={t.path}
             className={`header-tab${pathname === t.path ? ' active' : ''}`}
+            aria-current={pathname === t.path ? 'page' : undefined}
             onClick={() => navigate(t.path)}
           >
             {t.label}
           </button>
         ))}
-      </div>
+      </nav>
 
       {/* Nav */}
       <div className="header-nav">
-        <button className="nav-btn" onClick={() => setMethodologyOpen(true)}>Methodology</button>
-        <button className={`nav-btn${isAdmin ? ' active' : ''}`} onClick={() => navigate('/admin')}>Admin</button>
+        <button className="nav-btn nav-btn-methodology" onClick={() => setMethodologyOpen(true)} aria-label="Methodology">
+          <span className="nav-btn-label">Methodology</span>
+          <svg className="nav-btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="8.25" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M10 9v5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+            <circle cx="10" cy="6.25" r="1.1" fill="currentColor" />
+          </svg>
+        </button>
+        <button className={`nav-btn nav-btn-admin${isAdmin ? ' active' : ''}`} onClick={() => navigate('/admin')}>Admin</button>
       </div>
 
       {methodologyOpen && <MethodologyModal onClose={() => setMethodologyOpen(false)} />}

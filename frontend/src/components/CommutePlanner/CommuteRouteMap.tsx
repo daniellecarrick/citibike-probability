@@ -7,6 +7,7 @@ import mapboxgl from 'mapbox-gl';
 import { useEffect, useRef } from 'react';
 import type { Station } from '../../types';
 import { formatTime } from '../../utils/time';
+import { isTouchDevice } from '../../utils/device';
 
 const runtimeConfig = (globalThis as typeof globalThis & { __APP_CONFIG__?: { MAPBOX_TOKEN?: string } }).__APP_CONFIG__ ?? {};
 mapboxgl.accessToken = runtimeConfig.MAPBOX_TOKEN ?? import.meta.env.VITE_MAPBOX_TOKEN ?? '';
@@ -67,6 +68,7 @@ export function CommuteRouteMap({ origin, dest, originBikes, destDocks, departMi
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
+    const touch = isTouchDevice();
     const m = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
@@ -75,8 +77,11 @@ export function CommuteRouteMap({ origin, dest, originBikes, destDocks, departMi
       attributionControl: false,
       // Leave the wheel for page scrolling; zoom via the +/- control.
       scrollZoom: false,
+      // On touch, one finger scrolls the page; two fingers move the map.
+      cooperativeGestures: touch,
     });
-    m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+    // Pinch already zooms on touch, and the buttons would cover the labels.
+    if (!touch) m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     map.current = m;
 
     m.on('load', () => {
@@ -126,7 +131,13 @@ export function CommuteRouteMap({ origin, dest, originBikes, destDocks, departMi
       const bounds = new mapboxgl.LngLatBounds();
       bounds.extend([origin.lng, origin.lat]);
       bounds.extend([dest.lng, dest.lat]);
-      m.fitBounds(bounds, { padding: { top: 70, bottom: 70, left: 120, right: 120 }, maxZoom: 14, duration: 0 });
+      // Side padding leaves room for the on-map labels on wide screens; on a
+      // phone the labels move below the map, so a little breathing room is enough.
+      const narrow = (mapContainer.current?.clientWidth ?? 1000) < 500;
+      const padding = narrow
+        ? { top: 36, bottom: 36, left: 36, right: 36 }
+        : { top: 70, bottom: 70, left: 120, right: 120 };
+      m.fitBounds(bounds, { padding, maxZoom: 14, duration: 0 });
     };
 
     if (m.isStyleLoaded()) apply();
@@ -154,6 +165,23 @@ export function CommuteRouteMap({ origin, dest, originBikes, destDocks, departMi
   return (
     <div className="card route-map-card">
       <div ref={mapContainer} className="route-map-canvas" />
+      {/* Phone layout: the marker labels don't fit on a narrow map, so the same facts list here. */}
+      <ul className="route-map-legend">
+        <li>
+          <span className="route-map-legend-dot" style={{ background: ROUTE_ORIGIN_COLOR }} />
+          <span>
+            <span className="route-map-legend-name">{origin.station_name}</span>
+            <span className="route-map-legend-stat">{formatCount(originBikes, departMinute, bikeNoun)}</span>
+          </span>
+        </li>
+        <li>
+          <span className="route-map-legend-dot" style={{ background: ROUTE_DEST_COLOR }} />
+          <span>
+            <span className="route-map-legend-name">{dest.station_name}</span>
+            <span className="route-map-legend-stat">{formatCount(destDocks, arriveMinute, ['open dock', 'open docks'])}</span>
+          </span>
+        </li>
+      </ul>
       <div className="route-map-footnote">
         Typical counts for the selected day and time: bikes when you leave, open docks when you arrive.
       </div>

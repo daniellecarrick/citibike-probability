@@ -7,6 +7,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../store';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useElementWidth } from '../../hooks/useElementWidth';
+import { tooltipPosition, useChartPointer } from '../../hooks/useChartPointer';
+import { tapOrClick } from '../../utils/device';
 import { fmtPct, probabilityToColor, SCALE_FLOOR } from '../../utils/colorScale';
 import { COMMUTE_WINDOWS, DAYS_FULL, formatTime } from '../../utils/time';
 import type { CommuteMatrixBucket, CommuteMatrixResponse, DayOfWeek } from '../../types';
@@ -141,7 +144,7 @@ export function CommuteWeekView({ matrix, bikeLabel }: Props) {
       <div className="card week-glance">
         <div className="card-title">Your week at a glance</div>
         <p className="week-glance-sub">
-          Average chance of finding a bike and a dock during each commute window. Click a tile to zoom in.
+          Average chance of finding a bike and a dock during each commute window. {tapOrClick()} a tile to zoom in.
         </p>
         {isMobile ? (
           <div className="week-grid week-grid-mobile">
@@ -197,11 +200,7 @@ export function CommuteWeekView({ matrix, bikeLabel }: Props) {
   );
 }
 
-const W = 700;
-const H = 250;
 const PAD = { l: 38, r: 14, t: 22, b: 26 };
-const IW = W - PAD.l - PAD.r;
-const IH = H - PAD.t - PAD.b;
 
 function WindowZoomChart({
   matrix, day, win, summary, selectedTime, onPick, bikeLabel,
@@ -217,6 +216,15 @@ function WindowZoomChart({
   const svgRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<CommuteMatrixBucket | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+
+  // 1 SVG unit = 1px at the rendered width, so labels stay their real size on
+  // a phone instead of shrinking with a fixed 700-wide viewBox. Narrow
+  // screens get a slightly shorter chart so it doesn't read as a tall box.
+  const [boxRef, measured] = useElementWidth(700);
+  const W = measured;
+  const H = W < 480 ? 220 : 250;
+  const IW = W - PAD.l - PAD.r;
+  const IH = H - PAD.t - PAD.b;
 
   const [start, end] = WINDOWS[win].range;
   const lastMinute = end - matrix.bucket_minutes;
@@ -270,6 +278,12 @@ function WindowZoomChart({
 
   const title = `${DAYS_FULL[day]} ${WINDOWS[win].label.toLowerCase()}`;
 
+  const pointer = useChartPointer({
+    onHover: (cx, cy) => { setHover(bucketAt(cx)); setHoverPos({ x: cx, y: cy }); },
+    onLeave: () => { setHover(null); setHoverPos(null); },
+    onPick: cx => { const b = bucketAt(cx); if (b) onPick(b.departure_minute); },
+  });
+
   return (
     <div className="card window-zoom">
       <div className="window-zoom-head">
@@ -292,6 +306,7 @@ function WindowZoomChart({
         </div>
       </div>
 
+      <div ref={boxRef}>
       {known.length === 0 ? (
         <div className="availability-chart-empty">Not enough data yet for this window.</div>
       ) : (
@@ -301,9 +316,8 @@ function WindowZoomChart({
           viewBox={`0 0 ${W} ${H}`}
           role="img"
           aria-label={`Chance of a successful commute by departure time, ${title}`}
-          onMouseMove={e => { setHover(bucketAt(e.clientX)); setHoverPos({ x: e.clientX, y: e.clientY }); }}
-          onMouseLeave={() => { setHover(null); setHoverPos(null); }}
-          onClick={e => { const b = bucketAt(e.clientX); if (b) onPick(b.departure_minute); }}
+          {...pointer}
+          style={{ touchAction: 'pan-y' }}
         >
           <defs>
             <linearGradient id="window-zoom-line" x1={PAD.l} x2={PAD.l + IW} y1="0" y2="0" gradientUnits="userSpaceOnUse">
@@ -321,7 +335,7 @@ function WindowZoomChart({
             <g key={v}>
               <line x1={PAD.l} x2={PAD.l + IW} y1={y(v)} y2={y(v)} stroke="#eceef2" strokeWidth={1} />
               <text x={PAD.l - 6} y={y(v)} textAnchor="end" dominantBaseline="middle"
-                fontFamily="'IBM Plex Mono',monospace" fontSize={10} fill="#9aa1ad">
+                fontFamily="'IBM Plex Mono',monospace" fontSize={11} fill="#9aa1ad">
                 {Math.round(v * 100)}%
               </text>
             </g>
@@ -330,7 +344,7 @@ function WindowZoomChart({
 
           {hourTicks.map(m => (
             <text key={m} x={x(Math.min(m, lastMinute))} y={H - 8} textAnchor="middle"
-              fontFamily="'IBM Plex Mono',monospace" fontSize={10} fill="#9aa1ad">
+              fontFamily="'IBM Plex Mono',monospace" fontSize={11} fill="#9aa1ad">
               {fmtHour(m).replace(' ', '').toLowerCase()}
             </text>
           ))}
@@ -347,7 +361,7 @@ function WindowZoomChart({
             return (
               <g pointerEvents="none">
                 <circle cx={lx} cy={ly} r={4.5} fill="white" stroke="#16181d" strokeWidth={2} />
-                <text x={lx} y={ly - 10} textAnchor={lx > W - 120 ? 'end' : 'middle'}
+                <text x={lx} y={ly - 10} textAnchor={lx > W - 60 ? 'end' : lx < PAD.l + 50 ? 'start' : 'middle'}
                   fontSize={11} fontWeight={600} fill="#16181d">
                   Leave by {formatTime(summary.leaveBy.departure_minute)}
                 </text>
@@ -372,11 +386,12 @@ function WindowZoomChart({
           <rect x={PAD.l} y={PAD.t} width={IW} height={IH} fill="transparent" style={{ cursor: 'crosshair' }} />
         </svg>
       )}
+      </div>
 
-      <div className="window-zoom-foot">Click the chart to set your departure time.</div>
+      <div className="window-zoom-foot">{tapOrClick()} the chart to set your departure time.</div>
 
       {hover && hoverPos && (
-        <div className="chart-hover-tooltip" style={{ left: hoverPos.x + 14, top: hoverPos.y - 74 }}>
+        <div className="chart-hover-tooltip" style={tooltipPosition(hoverPos.x, hoverPos.y, 160, 74)}>
           <div className="chart-tooltip-title">{DAY_LABELS[day]} {formatTime(hover.departure_minute)}</div>
           <div className="chart-tooltip-row">
             <span>Success</span>

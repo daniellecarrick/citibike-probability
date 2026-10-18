@@ -13,6 +13,8 @@ import { CommuteMiniMap } from './CommuteMiniMap';
 import { CommuteRouteMap, ROUTE_DEST_COLOR, ROUTE_ORIGIN_COLOR } from './CommuteRouteMap';
 import { CommuteWeekView } from './CommuteWeekView';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { StationSearchModal } from '../Mobile/StationSearchModal';
 import type { SavedCommute } from '../../hooks/useSavedCommutes';
 import type { CommuteAvailabilitySeries, DayOfWeek, Station } from '../../types';
 import bridgeImg from '../../images/bridge.png';
@@ -178,6 +180,34 @@ function InlineSelect({
   );
 }
 
+/** Pill-shaped native dropdown for the phone results header; iOS opens its wheel picker. */
+function ChipSelect({
+  value, options, onChange, ariaLabel,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <span className="chip-select-wrap">
+      <select
+        className="chip-select"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        aria-label={ariaLabel}
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <svg className="chip-select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+        <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  );
+}
+
 /** Searchable station dropdown */
 function StationCombo({
   stations,
@@ -185,13 +215,16 @@ function StationCombo({
   onChange,
   dotColor,
   placeholder,
+  searchPlaceholder,
 }: {
   stations: Station[];
   value: string;
   onChange: (id: string) => void;
   dotColor: string;
   placeholder: string;
+  searchPlaceholder?: string;
 }) {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -227,7 +260,18 @@ function StationCombo({
           )}
         </div>
       </div>
-      {open && (
+      {/* Phones get a full-screen search so results aren't squeezed above the keyboard. */}
+      {open && isMobile && (
+        <StationSearchModal
+          stations={stations}
+          selectedId={value || null}
+          onSelect={onChange}
+          onClose={() => setOpen(false)}
+          placeholder={searchPlaceholder ?? placeholder}
+          dotColor={dotColor}
+        />
+      )}
+      {open && !isMobile && (
         <div className="station-dropdown">
           <div className="station-dropdown-search">
             <input
@@ -265,6 +309,7 @@ export function CommutePlanner({ stations }: Props) {
   const { matrix: matrixFine } = useCommuteMatrix(5);
   const { series } = useCommuteAvailabilitySeries();
   const { recent, starred, addRecent, isStarred } = useSavedCommutes();
+  const isMobile = useIsMobile();
 
   const [originId, setOriginId] = useState(commute?.originId ?? '');
   const [destId,   setDestId]   = useState(commute?.destId   ?? '');
@@ -373,7 +418,7 @@ export function CommutePlanner({ stations }: Props) {
     <div className="commute-hero-main">
     <h1>How reliable is your Citi Bike route?</h1>
     <p className="commute-subtitle">
-      See the odds of finding a bike and an open dock before you leave — for any route, any day, any time.
+      See the odds of finding a bike and an open dock — for any route, any day, any time.
     </p>
       {/* Planner card */}
       <div className="card planner-card">
@@ -385,6 +430,7 @@ export function CommutePlanner({ stations }: Props) {
               onChange={setOriginId}
               dotColor={ROUTE_ORIGIN_COLOR}
               placeholder="Choose origin station…"
+              searchPlaceholder="Search for your start station"
             />
           </div>
           <button className="planner-arrow-btn" onClick={handleSwap} title="Swap origin and destination">
@@ -397,6 +443,7 @@ export function CommutePlanner({ stations }: Props) {
               onChange={setDestId}
               dotColor={ROUTE_DEST_COLOR}
               placeholder="Choose destination…"
+              searchPlaceholder="Search for your end station"
             />
           </div>
           <button
@@ -527,26 +574,51 @@ export function CommutePlanner({ stations }: Props) {
                   </button>
                 </div>
               </div>
-              <h1 className="forecast-headline-title">
-                If you leave{' '}
-                <InlineSelect
-                  value={String(selectedDay)}
-                  options={DAY_OPTIONS}
-                  onChange={v => setDay(Number(v) as DayOfWeek)}
-                  ariaLabel="Day of week"
-                />{' '}
-                at{' '}
-                <span style={{ whiteSpace: 'nowrap' }}>
+              {isMobile ? (
+                <>
+                  <h1 className="forecast-mobile-title">
+                    <span className="forecast-mobile-pct" style={{ color: pColor }}>
+                      {p !== null ? `${Math.round(p * 100)}%` : '—'}
+                    </span>
+                    <span className="forecast-mobile-caption">chance of a successful commute if you leave</span>
+                  </h1>
+                  <div className="forecast-mobile-when">
+                    <ChipSelect
+                      value={String(selectedDay)}
+                      options={DAY_OPTIONS}
+                      onChange={v => setDay(Number(v) as DayOfWeek)}
+                      ariaLabel="Day of week"
+                    />
+                    <ChipSelect
+                      value={String(selectedTime)}
+                      options={timeOptions}
+                      onChange={v => setTime(Number(v))}
+                      ariaLabel="Time of day"
+                    />
+                  </div>
+                </>
+              ) : (
+                <h1 className="forecast-headline-title">
+                  If you leave{' '}
                   <InlineSelect
-                    value={String(selectedTime)}
-                    options={timeOptions}
-                    onChange={v => setTime(Number(v))}
-                    ariaLabel="Time of day"
-                  />,
-                </span>{' '}
-                your chance of a successful commute is{' '}
-                <span style={{ color: pColor }}>{p !== null ? `${Math.round(p * 100)}%` : '—'}</span>.
-              </h1>
+                    value={String(selectedDay)}
+                    options={DAY_OPTIONS}
+                    onChange={v => setDay(Number(v) as DayOfWeek)}
+                    ariaLabel="Day of week"
+                  />{' '}
+                  at{' '}
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    <InlineSelect
+                      value={String(selectedTime)}
+                      options={timeOptions}
+                      onChange={v => setTime(Number(v))}
+                      ariaLabel="Time of day"
+                    />,
+                  </span>{' '}
+                  your chance of a successful commute is{' '}
+                  <span style={{ color: pColor }}>{p !== null ? `${Math.round(p * 100)}%` : '—'}</span>.
+                </h1>
+              )}
               {result.data_warning && (
                 <div className="data-warning-banner">
                   {result.data_warning}{' '}
