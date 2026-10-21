@@ -10,11 +10,13 @@ import { useStore } from '../../store';
 import { probabilityToColor, SCALE_FLOOR } from '../../utils/colorScale';
 import { DAYS_FULL, COMMUTE_WINDOWS } from '../../utils/time';
 import { tooltipPosition } from '../../hooks/useChartPointer';
-import { isTouchDevice, tapOrClick } from '../../utils/device';
+import { isTouchDevice } from '../../utils/device';
 import type { CommuteMatrixResponse } from '../../types';
 
 interface Props {
   matrix: CommuteMatrixResponse;
+  /** Inside another card (CommuteOverview): skip this card's own frame, title, and context line. */
+  embedded?: boolean;
 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -56,7 +58,7 @@ function periodOf(minute: number): Period {
 
 /** "Monday mornings are the worst, but Thursday evenings are clear" —
  * derived from the day×time success-probability grid, not hardcoded. */
-function contextSentence(matrix: CommuteMatrixResponse): string | null {
+export function contextSentence(matrix: CommuteMatrixResponse): string | null {
   const agg = new Map<string, { sum: number; count: number }>();
 
   for (const day of matrix.days) {
@@ -86,8 +88,8 @@ function contextSentence(matrix: CommuteMatrixResponse): string | null {
   return `${DAYS_FULL[Number(worstDay)]} ${PERIOD_PLURAL[worstPeriod]} are the worst, but ${DAYS_FULL[Number(bestDay)]} ${PERIOD_PLURAL[bestPeriod]} are clear.`;
 }
 
-export function CommuteMatrix({ matrix }: Props) {
-  const { selectedDay, selectedTime, setDay, setTime } = useStore();
+export function CommuteMatrix({ matrix, embedded = false }: Props) {
+  const { selectedDay, selectedTime } = useStore();
   const [hover, setHover] = useState<{ day: number; bucketIdx: number } | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -138,10 +140,11 @@ export function CommuteMatrix({ matrix }: Props) {
   const weekdayTop = weekdayRowIdxs.length ? Math.min(...weekdayRowIdxs) : null;
   const weekdayBottom = weekdayRowIdxs.length ? Math.max(...weekdayRowIdxs) : null;
 
-  // Touch has no hover: the hint line reports the selected cell instead.
+  // Read-only: day and time change only from the dropdowns. The hint line
+  // reports the hovered cell, or the selected one when nothing is hovered.
   const touch = isTouchDevice();
   const selectedRowIdx = matrix.days.findIndex(d => d.day_of_week === selectedDay);
-  const hintTarget = hover ?? (touch && selectedRowIdx >= 0 ? { day: selectedRowIdx, bucketIdx: selectedBucketIdx } : null);
+  const hintTarget = hover ?? (selectedRowIdx >= 0 ? { day: selectedRowIdx, bucketIdx: selectedBucketIdx } : null);
   const hoverBucket = hintTarget
     ? matrix.days[hintTarget.day]?.buckets[hintTarget.bucketIdx]
     : null;
@@ -149,9 +152,9 @@ export function CommuteMatrix({ matrix }: Props) {
   const context = useMemo(() => contextSentence(matrix), [matrix]);
 
   return (
-    <div className="commute-matrix card" ref={containerRef}>
-      <div className="card-title">Probability of a successful commute by hour and day</div>
-      {context && <div className="matrix-context">{context}</div>}
+    <div className={embedded ? 'commute-matrix commute-matrix-embedded' : 'commute-matrix card'} ref={containerRef}>
+      {!embedded && <div className="card-title">Probability of a successful commute by hour and day</div>}
+      {!embedded && context && <div className="matrix-context">{context}</div>}
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         {matrix.days.map((day, rowIdx) => (
           <g key={day.day_of_week}>
@@ -184,11 +187,9 @@ export function CommuteMatrix({ matrix }: Props) {
                   fill={probabilityToColor(bucket.success_probability)}
                   stroke={isSelected ? '#16181d' : 'none'}
                   strokeWidth={isSelected ? 2 : 0}
-                  style={{ cursor: 'pointer' }}
                   onMouseEnter={(e) => { if (touch) return; setHover({ day: rowIdx, bucketIdx: colIdx }); setHoverPos({ x: e.clientX, y: e.clientY }); }}
                   onMouseMove={(e) => { if (!touch) setHoverPos({ x: e.clientX, y: e.clientY }); }}
                   onMouseLeave={() => { setHover(null); setHoverPos(null); }}
-                  onClick={() => { setDay(day.day_of_week); setTime(bucket.departure_minute); }}
                 />
               );
             })}
@@ -233,7 +234,7 @@ export function CommuteMatrix({ matrix }: Props) {
 
         {/* Time-of-day axis. This SVG's viewBox is sized to the container's
             actual measured pixel width (1 unit = 1px, no scaling), unlike
-            AvailabilityChart/RecommendationList which stretch a fixed-width
+            the archived RecommendationList, which stretched a fixed-width
             viewBox to fill the same max-width:1000px container — so a font
             size here needs to be bumped by that ~1000/700 stretch factor
             (9 → 13) to read as the same size as their axis labels. */}
@@ -284,8 +285,8 @@ export function CommuteMatrix({ matrix }: Props) {
           {hintTarget && hoverBucket
             ? `${DAY_LABELS[matrix.days[hintTarget.day].day_of_week]} ${formatTime(hoverBucket.departure_minute)} — ${
                 hoverBucket.success_probability !== null ? `${Math.round(hoverBucket.success_probability * 100)}%` : 'no data'
-              }${touch ? ` · ${tapOrClick()} a cell to change it` : ''}`
-            : `${tapOrClick()} a cell to see that day and time below`}
+              }`
+            : null}
         </div>
         {vertical && <div className="commute-matrix-hint">Outlined: weekday morning and evening commutes</div>}
         <div className="scale-hint">
