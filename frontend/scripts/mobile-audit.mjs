@@ -104,18 +104,47 @@ await page.locator('.sample-commute-card').first().tap();
 await page.locator('.planner-cta-btn').tap();
 await page.waitForSelector('.forecast-headline', { timeout: 20000 });
 await page.waitForTimeout(3500);
-await page.locator('details.commute-allhours').evaluate(d => { d.open = true; });
-await page.waitForTimeout(800);
 await shot('03-results');
 await shot('03-results-full', true);
 await audit('Commute results');
 
-// Touch-scrub the zoom chart: drag right along it, release → time changes
-const svg = page.locator('.window-zoom-svg');
+// Station pair widget (bikes at origin, docks at destination)
+const pair = page.locator('.station-pair');
+await pair.scrollIntoViewIfNeeded();
+await pair.screenshot({ path: `${OUT}/03a-station-pair.png` });
+
+// Week overview: heatmap (default), then the stacked line view
+const overview = page.locator('.commute-overview');
+await overview.scrollIntoViewIfNeeded();
+await overview.screenshot({ path: `${OUT}/03b-overview-heatmap.png` });
+await page.getByRole('button', { name: 'Lines', exact: true }).tap();
+await page.waitForTimeout(400);
+await overview.screenshot({ path: `${OUT}/03c-overview-lines.png` });
+await audit('Week overview (lines)');
+// Charts are read-only: tapping Thursday's line near 6 PM must not change the day or time
+{
+  const box = await page.locator('.commute-day-lines svg').boundingBox();
+  const rowH = (box.height - 20 + 6) / 7;
+  const dayBefore = await page.locator('.forecast-headline .chip-select').first().inputValue();
+  const timeBefore = await page.locator('.forecast-headline .chip-select').nth(1).inputValue();
+  await page.touchscreen.tap(box.x + 38 + (box.width - 44) * (18 / 23.5), box.y + rowH * 3 + rowH / 2);
+  await page.waitForTimeout(400);
+  const day = await page.locator('.forecast-headline .chip-select').first().inputValue();
+  const time = await page.locator('.forecast-headline .chip-select').nth(1).inputValue();
+  const ok = day === dayBefore && time === timeBefore;
+  console.log(`\n${ok ? '✓' : '✗'} Tapping a day line left the day/time unchanged (day=${day} time=${time})`);
+  if (!ok) problems.push('Tapping a day line changed the day/time');
+}
+// Back to the default so later screenshots match a first visit
+await page.getByRole('button', { name: 'Heatmap', exact: true }).tap();
+
+// Touch-scrub the pick-up chart: drag shows values, release must not change the time
+await page.evaluate(() => window.scrollTo(0, 0));
+const svg = page.locator('.pair-panel-origin svg');
 if (await svg.count()) {
   await svg.scrollIntoViewIfNeeded();
   const box = await svg.boundingBox();
-  const before = await page.locator('.chip-select').nth(1).inputValue();
+  const before = await page.locator('.forecast-headline .chip-select').nth(1).inputValue();
   const cdp = await ctx.newCDPSession(page);
   const y = box.y + box.height / 2;
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width * 0.2, y }] });
@@ -125,9 +154,9 @@ if (await svg.count()) {
   await shot('04-chart-scrub');
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await page.waitForTimeout(500);
-  const after = await page.locator('.chip-select').nth(1).inputValue();
-  console.log(`\n${before !== after ? '✓' : '✗'} Chart touch scrub changed departure time (${before} → ${after})`);
-  if (before === after) problems.push('Chart touch scrub did not change the departure time');
+  const after = await page.locator('.forecast-headline .chip-select').nth(1).inputValue();
+  console.log(`\n${before === after ? '✓' : '✗'} Chart touch scrub left the departure time unchanged (${before} → ${after})`);
+  if (before !== after) problems.push('Chart touch scrub changed the departure time');
 }
 
 // Methodology

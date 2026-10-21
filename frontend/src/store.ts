@@ -52,6 +52,8 @@ interface AppState {
 
   // UI
   focusCommute: boolean;
+  /** False once the forecast headline's controls have scrolled out of view; the route bar then shows them. */
+  headlineControlsVisible: boolean;
   animation: { playing: boolean };
 
   // Data cache
@@ -67,6 +69,7 @@ interface AppState {
   selectStation: (id: string | null) => void;
   setCommute: (plan: CommutePlan | null) => void;
   setFocusCommute: (v: boolean) => void;
+  setHeadlineControlsVisible: (v: boolean) => void;
   setPlaying: (playing: boolean) => void;
   setCurrentMapData: (data: StationProbability[]) => void;
   setBulkCache: (key: string, data: BulkMapData) => void;
@@ -92,6 +95,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedStationId: null,
   commute: null,
   focusCommute: false,
+  headlineControlsVisible: true,
   animation: { playing: false },
   currentMapData: [],
   bulkCache: {},
@@ -104,6 +108,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectStation: (id) => set({ selectedStationId: id }),
   setCommute: (plan) => set({ commute: plan }),
   setFocusCommute: (v) => set({ focusCommute: v }),
+  setHeadlineControlsVisible: (v) => set({ headlineControlsVisible: v }),
   setPlaying: (playing) => set((s) => ({ animation: { ...s.animation, playing } })),
   setCurrentMapData: (data) => set({ currentMapData: data }),
   setBulkCache: (key, data) => set((s) => ({ bulkCache: { ...s.bulkCache, [key]: data } })),

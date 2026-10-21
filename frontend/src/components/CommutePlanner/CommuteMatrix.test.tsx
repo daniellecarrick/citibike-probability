@@ -35,7 +35,7 @@ describe('CommuteMatrix', () => {
     expect(container.querySelectorAll('rect.matrix-cell').length).toBe(7 * 48);
   });
 
-  it('clicking a cell sets the global day and time to that bucket', () => {
+  it('is read-only: clicking a cell leaves the day and time alone', () => {
     const { container } = render(<CommuteMatrix matrix={makeMatrix()} />);
     const rects = container.querySelectorAll('rect.matrix-cell');
     // Wednesday (day_of_week=2) is the 3rd row (index 2); bucket 16 → 08:00 (16 * 30 = 480)
@@ -44,7 +44,7 @@ describe('CommuteMatrix', () => {
     const target = rects[wednesdayRow * 48 + bucketIdx];
     fireEvent.click(target);
 
-    expect(useStore.getState().selectedDay).toBe(2);
-    expect(useStore.getState().selectedTime).toBe(480);
+    expect(useStore.getState().selectedDay).toBe(0);
+    expect(useStore.getState().selectedTime).toBe(0);
   });
 });
