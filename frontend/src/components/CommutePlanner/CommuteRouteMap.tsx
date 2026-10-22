@@ -158,6 +158,24 @@ export function CommuteRouteMap({ origin, dest, originBikes, destDocks, departMi
         .setLngLat([origin.lng, origin.lat])
         .addTo(m),
     ];
+
+    // Labels open toward the middle of the map, so a station near the right
+    // edge (e.g. the east end of a crosstown trip) doesn't push its label
+    // off the map. Re-placed whenever the map moves, zooms, or resizes.
+    const place = () => {
+      const width = mapContainer.current?.clientWidth ?? 0;
+      for (const mk of markers.current) {
+        const { x } = m.project(mk.getLngLat());
+        mk.getElement().classList.toggle('label-left', x > width / 2);
+      }
+    };
+    place();
+    m.on('move', place);
+    m.on('resize', place);
+    return () => {
+      m.off('move', place);
+      m.off('resize', place);
+    };
   }, [origin, dest, originBikes, destDocks, departMinute, arriveMinute, bikeNoun[0], bikeNoun[1]]);
 
   if (!origin || !dest) return null;

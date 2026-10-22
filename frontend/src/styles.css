@@ -456,6 +456,7 @@ h1 {
   box-shadow: var(--shadow-float);
   pointer-events: none;
 }
+.route-map-marker.label-left .route-map-marker-label { left: auto; right: 20px; }
 .route-map-marker-name { font-size: 12px; font-weight: 600; color: var(--ink); }
 .route-map-marker-stat { font-size: 12px; font-weight: 400; margin-top: 1px; }
 /* Station facts listed under the map; only shown on phones, where the
@@ -596,6 +597,109 @@ h1 {
   flex-shrink: 0;
   margin-bottom: 0;
 }
+
+/* "or choose stations on a map" under the station fields */
+.planner-map-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  color: var(--accent-blue-deep);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+}
+.planner-map-link:hover { text-decoration: underline; }
+.station-dropdown-map-row { color: var(--accent-blue-deep); font-weight: 600; border-bottom: 1px solid var(--divider); }
+
+/* ─── Station picker map (modal) ─────────────────────────────────── */
+.picker-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 450;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(0,0,0,.32);
+  animation: fadeIn .15s ease;
+}
+.picker-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 960px;
+  height: min(760px, 100%);
+  background: var(--card-bg);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-drawer);
+  overflow: hidden;
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px 12px 20px;
+  border-bottom: 1px solid var(--card-border);
+  flex-shrink: 0;
+}
+.picker-title { font-family: var(--serif); font-size: 20px; font-weight: 600; color: var(--ink); }
+.picker-cancel {
+  height: 40px;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  color: var(--accent-blue-deep);
+  font-size: 15px;
+  font-weight: 600;
+}
+.picker-map { flex: 1; min-height: 0; }
+.picker-card {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--card-border);
+  flex-shrink: 0;
+}
+.picker-leg {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  background: var(--card-bg);
+  text-align: left;
+}
+.picker-leg.active { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.picker-leg-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.picker-leg-text { display: flex; flex-direction: column; min-width: 0; }
+.picker-leg-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.picker-leg-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.picker-leg-name.empty { font-weight: 400; color: var(--text-muted); }
+.picker-done { flex-shrink: 0; padding: 0 22px; font-size: 15px; }
+.picker-done:disabled { opacity: .45; cursor: default; }
 
 /* ─── Sample / saved commute cards ───────────────────────────────── */
 .commute-cards-wrap {
@@ -1120,17 +1224,9 @@ h1 {
 /* Commute week view: 7-day × AM/PM scorecard + zoom chart */
 .commute-overview { width: 100%; max-width: 1000px; }
 
-.commute-overview-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-}
-.commute-overview-titles { min-width: 0; }
-.commute-overview-titles .card-title { margin-bottom: 4px; }
-.commute-overview-titles .matrix-context { margin-bottom: 0; }
-.commute-overview-toggle { flex-shrink: 0; }
+.commute-overview-head { margin-bottom: 14px; }
+.commute-overview-head .card-title { margin-bottom: 4px; }
+.commute-overview-head .matrix-context { margin-bottom: 0; }
 .commute-matrix-embedded { border: none; box-shadow: none; padding: 0; max-width: none; background: none; }
 .commute-day-lines { width: 100%; }
 
@@ -1162,6 +1258,8 @@ h1 {
 }
 .chart-tooltip-row strong { color: var(--ink); font-weight: 600; }
 .chart-tooltip-row + .chart-tooltip-row { margin-top: 2px; }
+.day-lines-tooltip .chart-tooltip-row span { font-family: var(--mono); font-size: 11px; }
+.day-lines-tooltip .chart-tooltip-row.current span { color: var(--ink); font-weight: 700; }
 
 /* ─── Station detail (Station Details tab) ──────────────────────── */
 .station-empty {
@@ -2135,9 +2233,7 @@ h1 {
   .scale-hint { font-size: 13px; }
   .matrix-context { font-size: 14px; }
 
-  .commute-overview-head { flex-direction: column; gap: 12px; }
-  .commute-overview-toggle { align-self: stretch; }
-  .commute-overview-toggle .mode-toggle-btn { flex: 1; height: var(--tap); font-size: 14px; }
+
 
   .station-pair-sub { font-size: 14px; margin: -6px 0 14px; }
   .pair-panel-station { font-size: 16px; }
@@ -2146,6 +2242,36 @@ h1 {
   .chart-hover-tooltip { min-width: 0; }
   .chart-tooltip-title { font-size: 11px; }
   .chart-tooltip-row { font-size: 13px; }
+
+  /* ── Station picker map: full screen ─────────────────────────── */
+  .planner-map-link { min-height: var(--tap); margin-top: 2px; font-size: 15px; }
+  .mobile-selector-map-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--accent-blue-deep);
+  }
+  .mobile-selector-map-row .mobile-selector-item-name { color: inherit; font-weight: 600; }
+  .picker-modal { padding: 0; background: var(--card-bg); }
+  .picker-panel {
+    max-width: none;
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+    padding-top: env(safe-area-inset-top);
+  }
+  .picker-head { padding: 6px 6px 6px var(--gutter); }
+  .picker-title { font-size: 19px; }
+  .picker-cancel { height: var(--tap); font-size: 16px; }
+  .picker-card {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom));
+  }
+  .picker-leg { min-height: 56px; }
+  .picker-leg-label { font-size: 11px; }
+  .picker-leg-name { font-size: 16px; }
+  .picker-done { height: 52px; font-size: 16px; }
 
   /* ── Map screen ──────────────────────────────────────────────── */
   .mobile-app-body {
@@ -2158,7 +2284,8 @@ h1 {
     width: 100%;
     height: 100%;
   }
-  .mobile-app-body .mapboxgl-ctrl-group button { width: var(--tap); height: var(--tap); }
+  /* Every map's +/−, locate-me, etc.: full-size tap targets on phones */
+  .mapboxgl-ctrl-group button { width: var(--tap); height: var(--tap); }
   .mobile-app-body .mapboxgl-ctrl-bottom-right { margin-bottom: env(safe-area-inset-bottom); }
   .mobile-app-body .mapboxgl-ctrl-bottom-left { margin-bottom: env(safe-area-inset-bottom); }
 

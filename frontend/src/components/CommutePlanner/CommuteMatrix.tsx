@@ -269,14 +269,6 @@ export function CommuteMatrix({ matrix, embedded = false }: Props) {
             <span>Success</span>
             <strong>{fmtPct(hoverBucket.success_probability)}</strong>
           </div>
-          <div className="chart-tooltip-row">
-            <span>Bike avail.</span>
-            <strong>{fmtPct(hoverBucket.bike_probability)}</strong>
-          </div>
-          <div className="chart-tooltip-row">
-            <span>Dock avail.</span>
-            <strong>{fmtPct(hoverBucket.dock_probability)}</strong>
-          </div>
         </div>
       )}
 

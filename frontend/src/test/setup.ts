@@ -20,6 +20,7 @@ vi.mock('mapbox-gl', () => {
         remove: mockRemove,
         isStyleLoaded: vi.fn(() => true),
         addControl: vi.fn(),
+        project: vi.fn(() => ({ x: 0, y: 0 })),
       };
     }),
     accessToken: '',
@@ -34,6 +35,8 @@ vi.mock('mapbox-gl', () => {
         setLngLat: vi.fn().mockReturnThis(),
         addTo: vi.fn().mockReturnThis(),
         remove: vi.fn(),
+        getLngLat: vi.fn(() => ({ lng: 0, lat: 0 })),
+        getElement: vi.fn(() => document.createElement('div')),
       };
     }),
     Popup: vi.fn(function PopupMock() {
