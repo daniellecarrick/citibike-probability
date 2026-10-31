@@ -658,7 +658,34 @@ h1 {
   font-size: 15px;
   font-weight: 600;
 }
+.picker-map-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
 .picker-map { flex: 1; min-height: 0; }
+.picker-tooltip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  max-width: 240px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-tooltip);
+  /* Sits above the dot, centered; the align/below variants keep it inside the map. */
+  transform: translate(-50%, calc(-100% - 12px));
+  white-space: nowrap;
+}
+.picker-tooltip-left   { transform: translate(-16px, calc(-100% - 12px)); }
+.picker-tooltip-right  { transform: translate(calc(-100% + 16px), calc(-100% - 12px)); }
+.picker-tooltip.below                       { transform: translate(-50%, 12px); }
+.picker-tooltip-left.below                  { transform: translate(-16px, 12px); }
+.picker-tooltip-right.below                 { transform: translate(calc(-100% + 16px), 12px); }
+.picker-tooltip-name { font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.picker-tooltip-hood {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.picker-tooltip-action { margin-top: 3px; font-size: 12px; color: var(--accent-blue-deep); font-weight: 500; }
 .picker-card {
   display: flex;
   align-items: stretch;
@@ -1417,17 +1444,17 @@ h1 {
   border-radius: var(--r-card);
   padding: 14px 16px;
 }
-.scrubber-day-controls {
+.time-scrubber-panel { display: flex; flex-direction: column; gap: 14px; }
+.time-scrubber-panel .metric-group { align-items: stretch; gap: 6px; }
+.scrubber-day-pills { width: 100%; }
+.scrubber-time-controls {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
 }
-.scrubber-day-controls .day-pills-track { flex: 1; }
-/* Match the 34px pill-track height so the stepper and play button
-   don't stick out above/below the rest of the row. */
-.scrubber-day-controls .time-stepper { height: 34px; }
-.scrubber-day-controls .play-btn { width: 34px; height: 34px; }
+.scrubber-time-controls .time-stepper { flex: 1; min-width: 0; height: 36px; }
+.scrubber-time-controls .play-btn { width: 36px; height: 36px; }
 .scrubber-legend {
   display: flex;
   align-items: center;
@@ -1499,6 +1526,8 @@ h1 {
   text-transform: uppercase;
   margin-bottom: 8px;
 }
+.hover-tooltip-value { font-size: 12px; color: var(--text-muted); margin: -4px 0 8px; }
+.hover-tooltip-value strong { color: var(--ink); font-weight: 600; }
 .hover-tooltip-chart {
   display: block;
   width: 100%;

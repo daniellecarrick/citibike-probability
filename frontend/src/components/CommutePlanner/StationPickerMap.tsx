@@ -19,6 +19,18 @@ const HITS = 'picker-hits';
 
 export type PickerLeg = 'origin' | 'dest';
 
+/** Touch screens synthesize mouse events on tap; only mice and trackpads get the hover tooltip. */
+const canHover = () => typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover)').matches;
+
+interface HoverInfo {
+  id: string;
+  name: string;
+  neighborhood: string | null;
+  /** Pixel position of the station's dot within the map. */
+  x: number;
+  y: number;
+}
+
 interface Props {
   stations: Station[];
   originId: string;
@@ -36,6 +48,7 @@ export function StationPickerMap({ stations, originId, destId, initialLeg = 'ori
   const [origin, setOrigin] = useState(originId);
   const [dest, setDest] = useState(destId);
   const [leg, setLeg] = useState<PickerLeg>(initialLeg);
+  const [hover, setHover] = useState<HoverInfo | null>(null);
   // The click handler is registered once; read the active leg through a ref.
   const legRef = useRef(leg);
   legRef.current = leg;
@@ -92,8 +105,33 @@ export function StationPickerMap({ stations, originId, destId, initialLeg = 'ori
         paint: { 'circle-radius': 16, 'circle-color': 'rgba(0,0,0,0)', 'circle-opacity': 0 },
       });
 
+      // Hit circles are larger than the dots, so neighbours overlap near busy
+      // corners. Hover and click both use the station nearest the pointer,
+      // so the name in the tooltip is always the station a click picks.
+      const nearest = (e: mapboxgl.MapLayerMouseEvent): HoverInfo | null => {
+        let best: HoverInfo | null = null;
+        let bestDist = Infinity;
+        for (const f of e.features ?? []) {
+          if (f.geometry.type !== 'Point') continue;
+          const pt = m.project(f.geometry.coordinates as [number, number]);
+          const dist = Math.hypot(pt.x - e.point.x, pt.y - e.point.y);
+          if (dist < bestDist) {
+            bestDist = dist;
+            const props = f.properties ?? {};
+            best = {
+              id: String(props.station_id),
+              name: String(props.name ?? ''),
+              neighborhood: props.neighborhood ? String(props.neighborhood) : null,
+              x: pt.x,
+              y: pt.y,
+            };
+          }
+        }
+        return best;
+      };
+
       m.on('click', HITS, e => {
-        const id = e.features?.[0]?.properties?.station_id as string | undefined;
+        const id = nearest(e)?.id;
         if (!id) return;
         // A station can't be both ends of the trip.
         const other = legRef.current === 'origin' ? picks.current.dest : picks.current.origin;
@@ -106,7 +144,10 @@ export function StationPickerMap({ stations, originId, destId, initialLeg = 'ori
         }
       });
       m.on('mouseenter', HITS, () => { m.getCanvas().style.cursor = 'pointer'; });
-      m.on('mouseleave', HITS, () => { m.getCanvas().style.cursor = ''; });
+      m.on('mousemove', HITS, e => { if (canHover()) setHover(nearest(e)); });
+      m.on('mouseleave', HITS, () => { m.getCanvas().style.cursor = ''; setHover(null); });
+      // The tooltip is pinned to a dot's screen position, so drop it while the map moves.
+      m.on('movestart', () => setHover(null));
       setLoaded(true);
     });
 
@@ -125,6 +166,8 @@ export function StationPickerMap({ stations, originId, destId, initialLeg = 'ori
         geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
         properties: {
           station_id: s.station_id,
+          name: s.station_name,
+          neighborhood: s.neighborhood,
           role: s.station_id === origin ? 'origin' : s.station_id === dest ? 'dest' : 'none',
         },
       })),
@@ -143,6 +186,20 @@ export function StationPickerMap({ stations, originId, destId, initialLeg = 'ori
 
   const prompt = leg === 'origin' ? 'Tap your start station' : 'Tap your end station';
 
+  // What clicking the hovered station would do, given the active leg.
+  let hoverAction = '';
+  if (hover) {
+    const otherId = leg === 'origin' ? dest : origin;
+    const currentId = leg === 'origin' ? origin : dest;
+    if (hover.id === otherId) hoverAction = leg === 'origin' ? 'Already your end station' : 'Already your start station';
+    else if (hover.id === currentId) hoverAction = leg === 'origin' ? 'Your start station' : 'Your end station';
+    else hoverAction = leg === 'origin' ? 'Click to set as start' : 'Click to set as end';
+  }
+  const mapWidth = container.current?.clientWidth ?? 0;
+  // Keep the tooltip inside the map: shift its anchor near the side edges, flip below near the top.
+  const tipAlign = hover ? (hover.x < 120 ? 'left' : hover.x > mapWidth - 120 ? 'right' : 'center') : 'center';
+  const tipBelow = hover ? hover.y < 80 : false;
+
   return (
     <div className="picker-modal" role="dialog" aria-modal="true" aria-label="Choose stations on the map">
       <div className="picker-panel">
@@ -151,7 +208,20 @@ export function StationPickerMap({ stations, originId, destId, initialLeg = 'ori
           <button className="picker-cancel" onClick={onClose}>Cancel</button>
         </div>
 
-        <div className="picker-map" ref={container} />
+        <div className="picker-map-wrap">
+          <div className="picker-map" ref={container} />
+          {hover && (
+            <div
+              className={`picker-tooltip picker-tooltip-${tipAlign}${tipBelow ? ' below' : ''}`}
+              style={{ left: hover.x, top: hover.y }}
+              role="tooltip"
+            >
+              <div className="picker-tooltip-name">{hover.name}</div>
+              {hover.neighborhood && <div className="picker-tooltip-hood">{hover.neighborhood}</div>}
+              <div className="picker-tooltip-action">{hoverAction}</div>
+            </div>
+          )}
+        </div>
 
         <div className="picker-card">
           {([

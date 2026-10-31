@@ -10,6 +10,8 @@ export const mockFlyTo = vi.fn();
 export const mockFitBounds = vi.fn();
 export const mockRemove = vi.fn();
 export const mockIsStyleLoaded = vi.fn(() => true);
+/** Defaults to projecting every coordinate to (0, 0); tests can override per case. */
+export const mockProject = vi.fn((_lngLat?: unknown) => ({ x: 0, y: 0 }));
 
 const eventHandlers: Record<string, Array<(e?: unknown) => void>> = {};
 

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useStore, METRIC_LABEL, METRIC_TO_API } from '../../store';
+import { formatTime } from '../../utils/time';
 
 interface HoveredStation {
   id: string;
@@ -12,10 +13,15 @@ interface Props {
 }
 
 export function StationHoverTooltip({ station, tooltipRef }: Props) {
-  const { bulkCache, selectedDay, selectedMetric, selectedTime } = useStore();
+  const { bulkCache, selectedDay, selectedMetric, selectedTime, currentMapData } = useStore();
   const cacheKey = `${selectedDay}_${METRIC_TO_API[selectedMetric]}`;
   const cached = bulkCache[cacheKey];
   const stationId = station?.id ?? null;
+  const isFullness = selectedMetric === 'fullness';
+  // % Full is average bikes ÷ docks, the same value the map colors the dot by.
+  const capacity = isFullness && stationId
+    ? currentMapData.find(s => s.station_id === stationId)?.capacity ?? null
+    : null;
 
   // Build 24h probability series for hovered station from bulk cache.
   // Bulk data is columnar (station_ids + parallel per-slot arrays) — look
@@ -24,8 +30,17 @@ export function StationHoverTooltip({ station, tooltipRef }: Props) {
   const series = useMemo<(number | null)[]>(() => {
     const idx = stationId ? cached?.station_ids.indexOf(stationId) ?? -1 : -1;
     if (!cached || idx === -1) return Array.from({ length: 288 }, () => null);
+    // % Full borrows the bike metric's bulk data, so its `probability` field is
+    // "chance of 2+ bikes", not fullness. Chart bikes ÷ docks instead.
+    if (isFullness) {
+      if (!capacity) return Array.from({ length: 288 }, () => null);
+      return Array.from({ length: 288 }, (_, slot) => {
+        const bikes = cached.slots[String(slot)]?.mean_inventory[idx];
+        return bikes == null ? null : Math.min(1, bikes / capacity);
+      });
+    }
     return Array.from({ length: 288 }, (_, slot) => cached.slots[String(slot)]?.probability[idx] ?? null);
-  }, [cached, stationId]);
+  }, [cached, stationId, isFullness, capacity]);
 
   // Always render so tooltipRef is attached; hide via display:none when no station.
   if (!station) return <div ref={tooltipRef} style={{ display: 'none' }} />;
@@ -50,12 +65,20 @@ export function StationHoverTooltip({ station, tooltipRef }: Props) {
     ' L 287,56 Z';
 
   const currentX = Math.floor(selectedTime / 5);
-  const metricPhrase = selectedMetric === 'fullness' ? 'Fullness' : `${METRIC_LABEL[selectedMetric]} availability`;
+  const metricPhrase = isFullness ? 'Fullness' : `${METRIC_LABEL[selectedMetric]} availability`;
+  // The value at the selected time, matching the dot's color on the map.
+  const current = series[currentX];
+  const currentText = current === null || current === undefined
+    ? 'no data'
+    : isFullness ? `${Math.round(current * 100)}% full` : `${Math.round(current * 100)}% chance`;
 
   return (
     <div ref={tooltipRef} className="station-hover-tooltip">
       <div className="hover-tooltip-name">{station.name}</div>
       <div className="hover-tooltip-metric">{metricPhrase}</div>
+      <div className="hover-tooltip-value">
+        <strong>{currentText}</strong> at {formatTime(selectedTime)}
+      </div>
       <svg
         className="hover-tooltip-chart"
         viewBox="0 0 287 56"

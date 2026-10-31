@@ -39,23 +39,33 @@ export function TimeScrubber() {
     <div className="time-scrubber-panel">
       <div className="metric-group">
         <span className="filter-label">Day</span>
-        <div className="scrubber-day-controls">
-          <div className="day-pills-track">
-            {DAYS.map(d => (
-              <button
-                key={d.value}
-                className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
-                title={d.full}
-                onClick={() => setDay(d.value)}
-              >
-                {d.letter}
-              </button>
-            ))}
-          </div>
+        <div className="day-pills-track scrubber-day-pills">
+          {DAYS.map(d => (
+            <button
+              key={d.value}
+              className={`day-pill${selectedDay === d.value ? ' active' : ''}`}
+              title={d.full}
+              aria-label={d.full}
+              aria-pressed={selectedDay === d.value}
+              onClick={() => setDay(d.value)}
+            >
+              {d.letter}
+            </button>
+          ))}
+        </div>
+      </div>
 
+      {/* Time and play share a row so the play button stays inside the panel. */}
+      <div className="metric-group">
+        <span className="filter-label">Time</span>
+        <div className="scrubber-time-controls">
           <TimeStepper minutes={selectedTime} onChange={setTime} />
-
-          <button className="play-btn" onClick={() => setPlaying(!animation.playing)}>
+          <button
+            className="play-btn"
+            onClick={() => setPlaying(!animation.playing)}
+            aria-label={animation.playing ? 'Pause' : 'Play through the day'}
+            title={animation.playing ? 'Pause' : 'Play through the day'}
+          >
             {animation.playing ? '⏸' : '▶'}
           </button>
         </div>

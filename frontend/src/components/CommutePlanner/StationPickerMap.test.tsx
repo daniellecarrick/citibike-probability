@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { act, render, screen, fireEvent } from '@testing-library/react';
 import { StationPickerMap } from './StationPickerMap';
-import { triggerMapEvent } from '../../test/mocks/mapboxgl';
+import { mockProject, triggerMapEvent } from '../../test/mocks/mapboxgl';
 import type { Station } from '../../types';
 
 const stations = [
@@ -10,8 +10,17 @@ const stations = [
   { station_id: 'C', station_name: 'Bedford Ave', lat: 40.71, lng: -73.96 },
 ] as Station[];
 
+// The map mock projects every coordinate to (0, 0), so a pointer at (0, 0) sits on the dot.
+function feature(id: string, name = id, neighborhood: string | null = null) {
+  return { geometry: { type: 'Point', coordinates: [0, 0] }, properties: { station_id: id, name, neighborhood } };
+}
+
 function tapStation(id: string) {
-  act(() => triggerMapEvent('click', 'picker-hits', { features: [{ properties: { station_id: id } }] }));
+  act(() => triggerMapEvent('click', 'picker-hits', { point: { x: 0, y: 0 }, features: [feature(id)] }));
+}
+
+function hoverStation(id: string, name: string, neighborhood: string | null = null) {
+  act(() => triggerMapEvent('mousemove', 'picker-hits', { point: { x: 0, y: 0 }, features: [feature(id, name, neighborhood)] }));
 }
 
 function setup(props: Partial<React.ComponentProps<typeof StationPickerMap>> = {}) {
@@ -51,5 +60,61 @@ describe('StationPickerMap', () => {
     tapStation('C');
     fireEvent.click(screen.getByRole('button', { name: 'Use these stations' }));
     expect(onDone).toHaveBeenCalledWith('C', 'B');
+  });
+});
+
+describe('StationPickerMap hover tooltip', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function withHover(hover: boolean) {
+    vi.spyOn(window, 'matchMedia').mockImplementation(q => ({
+      matches: q.includes('hover: hover') ? hover : false,
+      media: q, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    }) as MediaQueryList);
+  }
+
+  it('shows the station name, neighborhood, and what a click will do', () => {
+    withHover(true);
+    setup();
+    hoverStation('C', 'Bedford Ave & N 7 St', 'Williamsburg');
+    const tip = screen.getByRole('tooltip');
+    expect(tip).toHaveTextContent('Bedford Ave & N 7 St');
+    expect(tip).toHaveTextContent('Williamsburg');
+    expect(tip).toHaveTextContent('Click to set as start');
+  });
+
+  it('says when the hovered station is already the other end', () => {
+    withHover(true);
+    setup({ originId: 'A', initialLeg: 'dest' });
+    hoverStation('A', 'Park Ave');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Already your start station');
+  });
+
+  it('hides when the pointer leaves the station', () => {
+    withHover(true);
+    setup();
+    hoverStation('B', 'Grand St');
+    act(() => triggerMapEvent('mouseleave', 'picker-hits'));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('does not appear on touch screens', () => {
+    withHover(false);
+    setup();
+    hoverStation('B', 'Grand St');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('clicks pick the station nearest the pointer when hit areas overlap', () => {
+    const { onDone } = setup({ initialLeg: 'origin' });
+    // Two overlapping hits: B is listed first but sits farther from the pointer than C.
+    const far = { geometry: { type: 'Point', coordinates: [10, 10] }, properties: { station_id: 'B' } };
+    const near = { geometry: { type: 'Point', coordinates: [1, 1] }, properties: { station_id: 'C' } };
+    mockProject.mockImplementation(lngLat => { const [x, y] = lngLat as [number, number]; return { x, y }; });
+    act(() => triggerMapEvent('click', 'picker-hits', { point: { x: 0, y: 0 }, features: [far, near] }));
+    tapStation('A');
+    fireEvent.click(screen.getByRole('button', { name: 'Use these stations' }));
+    expect(onDone).toHaveBeenCalledWith('C', 'A');
   });
 });
