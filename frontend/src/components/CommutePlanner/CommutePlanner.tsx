@@ -7,6 +7,7 @@ import { useStore } from '../../store';
 import { probabilityToColor } from '../../utils/colorScale';
 import { filterStations } from '../../utils/stationSearch';
 import { CommuteOverview } from './CommuteOverview';
+import { CommuteWindowRibbons } from './CommuteWindowRibbons';
 import { StationAvailabilityPair } from './StationAvailabilityPair';
 import { BikeTypeToggle, ChipSelect, DAY_OPTIONS, timeOptionsFor } from './commuteControls';
 import { CommuteMiniMap } from './CommuteMiniMap';
@@ -274,8 +275,9 @@ interface Props {
 export function CommutePlanner({ stations }: Props) {
   const { commute, setCommute, selectedDay, selectedTime, setDay, setTime, setMapMode } = useStore();
   const { result, loading } = useCommute();
-  // Half-hour buckets for the whole-week overview.
+  // Half-hour buckets for the whole-week overview; 5-minute for the commute-window ribbons.
   const { matrix } = useCommuteMatrix(30);
+  const { matrix: matrixFine } = useCommuteMatrix(5);
   const { series } = useCommuteAvailabilitySeries();
   const { recent, starred, addRecent, isStarred } = useSavedCommutes();
   const isMobile = useIsMobile();
@@ -641,6 +643,16 @@ export function CommutePlanner({ stations }: Props) {
 
           {/* The whole week at a glance: every half hour, as a heatmap or per-day lines. */}
           {matrix && <CommuteOverview matrix={matrix} />}
+
+          {/* Morning and evening windows: bike at the start, dock at the end, Mon–Fri */}
+          {matrixFine && (
+            <CommuteWindowRibbons
+              matrix={matrixFine}
+              originName={stations.find(s => s.station_id === commute.originId)?.station_name ?? 'your start station'}
+              destName={stations.find(s => s.station_id === commute.destId)?.station_name ?? 'your end station'}
+              bikeNoun={bikeType === 'ebike' ? 'e-bike' : 'bike'}
+            />
+          )}
 
           {/* TODO: mini maps hidden 2026-09-07, user wasn't happy with how they looked. Flip to re-enable. */}
           {SHOW_MINIMAPS && (

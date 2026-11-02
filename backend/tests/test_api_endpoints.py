@@ -106,3 +106,26 @@ def test_commute_recommendations(client, db):
     assert len(recs) > 0
     assert "departure_minute" in recs[0]
     assert "success_probability" in recs[0]
+
+
+# ── /api/stations/{id}/context ───────────────────────────────────────────────
+
+def test_station_context_range(client, db):
+    from tests.conftest import insert_snapshots
+    insert_snapshots(db, "S1", day_of_week=1, minute_of_day=8 * 60, count=4, bikes=5, docks=15)
+
+    r = client.get("/api/stations/S1/context", params={"day": 1, "time": 480, "metric": "docks"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["capacity"] == 20
+    assert body["range"]["metric"] == "docks"
+    assert body["range"]["median"] == 15
+    assert "nearby" not in body
+
+
+def test_station_context_unknown_station_404(client):
+    assert client.get("/api/stations/NOPE/context").status_code == 404
+
+
+def test_station_context_rejects_unknown_metric(client):
+    assert client.get("/api/stations/S1/context", params={"metric": "fullness"}).status_code == 422

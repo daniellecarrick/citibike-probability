@@ -1,53 +1,19 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { ProbabilityRibbon } from '../charts/ProbabilityRibbon';
+import { useEffect, useMemo } from 'react';
 import { StackedAreaChart } from '../charts/StackedAreaChart';
+import { StationDayChart } from '../charts/StationDayChart';
+import { TypicalRange } from './TypicalRange';
+import { useStationContext } from '../../hooks/useStationContext';
 import { useStationInfo } from '../../hooks/useStationInfo';
+import { useStationDaySeries } from '../../hooks/useStationDaySeries';
 import { useElementWidth } from '../../hooks/useElementWidth';
-import { useStore, METRIC_TO_API } from '../../store';
-import { probabilityToColor, fmtPct, SCALE_FLOOR } from '../../utils/colorScale';
+import { useStore } from '../../store';
+import { probabilityToColor, SCALE_FLOOR } from '../../utils/colorScale';
+import { describeStationDay } from '../../utils/stationSummary';
 import { api } from '../../api/client';
-import { COMMUTE_WINDOWS, averageInWindow, formatTime } from '../../utils/time';
-import type { BulkMapData, DayOfWeek } from '../../types';
+import { DAYS_FULL } from '../../utils/time';
+import type { BulkMapData } from '../../types';
 
 const SCALE_DOTS = [SCALE_FLOOR, (SCALE_FLOOR + 1) / 2, 1].map(v => probabilityToColor(v));
-const [AM_WINDOW, PM_WINDOW] = COMMUTE_WINDOWS;
-
-// "Probability by hour" always summarizes Mon–Fri, independent of whatever
-// single day is selected in the map's day picker.
-const WEEKDAYS: DayOfWeek[] = [0, 1, 2, 3, 4];
-
-// Weighted (by sample_count) average of a station's per-slot probability
-// across several day-bulk responses — pools Mon–Fri into one series instead
-// of just picking a single day.
-function weekdayAverageProbability(
-  caches: (BulkMapData | undefined)[],
-  stationId: string | null,
-): (number | null)[] {
-  const idxs = caches.map(c => (stationId ? c?.station_ids.indexOf(stationId) ?? -1 : -1));
-  return Array.from({ length: 288 }, (_, slot) => {
-    let sum = 0;
-    let count = 0;
-    caches.forEach((cached, i) => {
-      const idx = idxs[i];
-      if (!cached || idx === -1) return;
-      const s = cached.slots[String(slot)];
-      const c = s?.sample_count[idx] ?? 0;
-      const p = s?.probability[idx];
-      if (c > 0 && p !== null && p !== undefined) { sum += p * c; count += c; }
-    });
-    return count > 0 ? sum / count : null;
-  });
-}
-
-function commuteEase(score: number | null): { label: string; color: string; detail: string } {
-  const color = probabilityToColor(score);
-  if (score === null) return { label: 'Unknown', color: '#bbb', detail: 'Not enough recent data to estimate bike and dock availability here.' };
-  if (score < 0.2)  return { label: 'Difficult', color, detail: 'Bikes or docks are frequently unavailable during peak hours — plan a backup.' };
-  if (score < 0.45) return { label: 'Tough',      color, detail: 'Availability is inconsistent during peak hours — expect occasional waits.' };
-  if (score < 0.7)  return { label: 'Doable',     color, detail: 'Bikes and docks are usually available during peak hours, with some risk.' };
-  return              { label: 'Easy',       color, detail: 'Bikes and docks are reliably available during peak hours.' };
-}
-
 // /api/map/bulk is columnar (station_ids + parallel per-slot arrays, see
 // types.ts) rather than one record per station per slot — look a station's
 // value up by index instead of by equality search on every slot.
@@ -64,38 +30,9 @@ function bulkSeries(
 export function StationDetailPanel() {
   const {
     selectedStationId,
-    selectedDay, selectedMetric, focusCommute, setFocusCommute,
+    selectedDay, selectedMetric, selectedTime,
     bulkCache, setBulkCache,
   } = useStore();
-
-  // "Probability by hour" pools Mon–Fri regardless of the map's selected
-  // day, so it fetches its own set of weekday bulk responses rather than
-  // reusing the single-day cache entry the map itself relies on.
-  const metricApi = METRIC_TO_API[selectedMetric] as 'bikes' | 'ebikes' | 'docks';
-  useEffect(() => {
-    for (const d of WEEKDAYS) {
-      const key = `${d}_${metricApi}`;
-      if (!bulkCache[key]) {
-        api.map.bulk(d, metricApi).then(data => setBulkCache(key, data)).catch(console.error);
-      }
-      const dockKey = `${d}_docks`;
-      if (!bulkCache[dockKey]) {
-        api.map.bulk(d, 'docks').then(data => setBulkCache(dockKey, data)).catch(console.error);
-      }
-    }
-  }, [metricApi, bulkCache, setBulkCache]);
-
-  const hourValues = useMemo<(number | null)[]>(
-    () => weekdayAverageProbability(WEEKDAYS.map(d => bulkCache[`${d}_${metricApi}`]), selectedStationId),
-    [bulkCache, metricApi, selectedStationId],
-  );
-
-  // Dock availability is computed independently of the map's selected
-  // metric, since a visitor viewing "bike" chances still wants dock chances.
-  const dockHourValues = useMemo<(number | null)[]>(
-    () => weekdayAverageProbability(WEEKDAYS.map(d => bulkCache[`${d}_docks`]), selectedStationId),
-    [bulkCache, selectedStationId],
-  );
 
   // The "Bikes & docks by hour" chart below still follows the map's
   // selected day, so it fetches (and reuses) that single day's dock bulk.
@@ -159,18 +96,13 @@ export function StationDetailPanel() {
   }, [classicCountValues, ebikeCountValues, dockCountValues]);
 
   const { info, loading } = useStationInfo(selectedStationId);
-  const commuteRef = useRef<HTMLDivElement>(null);
+  // The same line as the map's hover tooltip, for the map's selected day and metric.
+  const { series, metricPhrase, formatValue } = useStationDaySeries(selectedStationId, info?.capacity);
+  const headline = useMemo(() => describeStationDay(series, selectedMetric), [series, selectedMetric]);
+  const context = useStationContext(selectedStationId);
   // Charts render at the panel's real width (the desktop rail is 480px; the
   // mobile sheet is the phone's width), so they never clip or scale text.
   const [chartBoxRef, chartWidth] = useElementWidth(412);
-
-  useEffect(() => {
-    if (focusCommute && commuteRef.current) {
-      commuteRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const timer = setTimeout(() => setFocusCommute(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [focusCommute, setFocusCommute]);
 
   if (!selectedStationId) {
     return (
@@ -191,17 +123,6 @@ export function StationDetailPanel() {
   if (loading) return <div className="loading">Loading station data…</div>;
   if (!info) return <div className="loading">Station not found.</div>;
 
-  const amBike = averageInWindow(hourValues, AM_WINDOW);
-  const amDock = averageInWindow(dockHourValues, AM_WINDOW);
-  const pmBike = averageInWindow(hourValues, PM_WINDOW);
-  const pmDock = averageInWindow(dockHourValues, PM_WINDOW);
-
-  const commuteScores = [amBike, amDock, pmBike, pmDock].filter((v): v is number => v !== null);
-  const overallScore = commuteScores.length > 0
-    ? commuteScores.reduce((a, b) => a + b, 0) / commuteScores.length
-    : null;
-  const ease = commuteEase(overallScore);
-
   return (
     <div style={{ animation: 'slideIn .32s cubic-bezier(.22,1,.36,1)' }}>
       {/* Sticky header */}
@@ -212,67 +133,25 @@ export function StationDetailPanel() {
 
         <div className="station-header-row">
           <div className="station-name">{info.station_name}</div>
-          <div
-            className="station-status-badge"
-            style={{
-              color: ease.color,
-              background: `${ease.color}18`,
-              border: `1px solid ${ease.color}44`,
-            }}
-          >
-            {ease.label}
-          </div>
         </div>
       </div>
 
-      {/* 1. Commute summary */}
-      <div className="detail-section" ref={commuteRef}>
-        <div
-          className={`commute-section${focusCommute ? ' focus-commute' : ''}`}
-        >
-          <div className="commute-headline">
-            {overallScore === null ? 'Not enough data for peak commute times' : `${ease.label} for the daily commute`}
-          </div>
-          <div className="commute-subheadline">{ease.detail}</div>
-
-          <div className="commute-window-block">
-            <div className="commute-window-heading">
-              {AM_WINDOW.label} <span className="commute-window-range">{formatTime(AM_WINDOW.startSlot * 5)}–{formatTime(AM_WINDOW.endSlot * 5)}</span>
-            </div>
-            <div className="commute-body">{fmtPct(amBike)} chance of a bike, {fmtPct(amDock)} chance of a dock.</div>
-            <div className="commute-ribbon" ref={chartBoxRef}>
-              <ProbabilityRibbon
-                window={AM_WINDOW}
-                rows={[
-                  { label: 'BIKE', values: hourValues },
-                  { label: 'DOCK', values: dockHourValues },
-                ]}
-                width={chartWidth}
-              />
-            </div>
-          </div>
-
-          <div className="commute-window-block">
-            <div className="commute-window-heading">
-              {PM_WINDOW.label} <span className="commute-window-range">{formatTime(PM_WINDOW.startSlot * 5)}–{formatTime(PM_WINDOW.endSlot * 5)}</span>
-            </div>
-            <div className="commute-body">{fmtPct(pmBike)} chance of a bike, {fmtPct(pmDock)} chance of a dock.</div>
-            <div className="commute-ribbon">
-              <ProbabilityRibbon
-                window={PM_WINDOW}
-                rows={[
-                  { label: 'BIKE', values: hourValues },
-                  { label: 'DOCK', values: dockHourValues },
-                ]}
-                width={chartWidth}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Share of bikes vs. docks by hour, stacked by type */}
+      {/* 1. The station's day, for the map's selected day and metric */}
       <div className="detail-section">
+        <div className="station-day-headline">{headline ?? 'Not enough data yet for this day'}</div>
+        <div className="station-day-sub">{DAYS_FULL[selectedDay]}s · {metricPhrase.toLowerCase()} through the day</div>
+        <StationDayChart series={series} selectedTime={selectedTime} variant="full" formatValue={formatValue} />
+      </div>
+
+      {/* 2. The typical count right now, as a range on 0 → capacity */}
+      <div className="detail-section">
+        <div className="detail-section-title">At this time</div>
+        {context ? <TypicalRange context={context} selectedTime={selectedTime} /> : <div className="typical-range-empty">Loading…</div>}
+      </div>
+
+
+      {/* 3. Share of bikes vs. docks by hour, stacked by type */}
+      <div className="detail-section" ref={chartBoxRef}>
         <div className="detail-section-title">Bikes &amp; docks by hour</div>
         <StackedAreaChart
           layers={[

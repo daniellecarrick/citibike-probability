@@ -81,3 +81,19 @@ def test_rollup_path_sums_across_window_slots(db):
     hist = {b["label"]: b["count"] for b in result["histogram"]}
     assert hist["1–2"] == 4
     assert hist["3–5"] == 6
+
+
+# ── exact=True: raw percentiles even when the rollup exists ─────────────────
+
+def test_exact_ignores_rollup_and_goes_above_bucket_ceiling(db):
+    # 40 bikes every time. The rollup's top bucket is "16+" (midpoint 18), so
+    # rollup-based percentiles would report 18; exact must report 40.
+    insert_snapshots(db, "S1", day_of_week=1, minute_of_day=8 * 60, count=6, bikes=40)
+    insert_rollup_row(db, "S1", day_of_week=1, raw_slot=96, total=6, bikes_sum=240.0, bikes_h16p=6)
+
+    approx = get_stability_metrics(db, "S1", day_of_week=1, time_of_day=8 * 60, metric="bikes")
+    exact = get_stability_metrics(db, "S1", day_of_week=1, time_of_day=8 * 60, metric="bikes", exact=True)
+
+    assert approx["median"] == 18
+    assert exact["median"] == 40
+    assert exact["p10"] == 40 and exact["p90"] == 40

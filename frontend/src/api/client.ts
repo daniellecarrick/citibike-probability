@@ -1,17 +1,4 @@
-import type {
-  AdminCoverageSlot,
-  AdminPoll,
-  AdminSummary,
-  BulkMapData,
-  CommuteAvailabilitySeries,
-  CommuteMatrixResponse,
-  CommuteResult,
-  DayOfWeek,
-  Metric,
-  Recommendation,
-  Station,
-  StationProbability,
-} from '../types';
+import type { AdminCoverageSlot, AdminPoll, AdminSummary, BulkMapData, CommuteAvailabilitySeries, CommuteMatrixResponse, CommuteResult, DayOfWeek, Metric, Recommendation, Station, StationContext, StationProbability } from '../types';
 
 // Mirrors BikeTypeParam in backend/routers/commute.py
 type BikeTypeParam = 'any' | 'ebike';
@@ -33,6 +20,8 @@ export const api = {
   stations: {
     list: () => get<Station[]>('/api/stations'),
     get: (id: string) => get<Station>(`/api/stations/${id}`),
+    context: (id: string, day: DayOfWeek, time: number, metric: 'bikes' | 'ebikes' | 'docks') =>
+      get<StationContext>(`/api/stations/${id}/context`, { day, time, metric }),
   },
 
   map: {

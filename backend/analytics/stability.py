@@ -70,8 +70,15 @@ def get_stability_metrics(
     metric: Metric = "bikes",
     window_minutes: int = 15,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    exact: bool = False,
 ) -> dict:
-    if rollup.rollup_available(conn):
+    """
+    exact=True skips the rollup and computes percentiles from the raw
+    snapshots. The rollup only stores bucketed counts (0, 1–2, 3–5, 6–10,
+    11–15, 16+), so its percentiles are bucket midpoints and can't go above
+    18. For one station that's cheap to avoid (a few milliseconds).
+    """
+    if not exact and rollup.rollup_available(conn):
         total, _, sum_inventory = rollup.fetch_station_probability_window(
             conn, station_id, day_of_week, time_of_day, metric, window_minutes  # type: ignore[arg-type]
         )

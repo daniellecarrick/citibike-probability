@@ -25,6 +25,22 @@ export interface StationProbability {
   stress_score: number | null;
 }
 
+/** /api/stations/{id}/context: the typical count the station side panel shows at the selected time. */
+export interface StationContext {
+  station_id: string;
+  capacity: number | null;
+  /** Exact percentiles of the count at this day/time (±15 min, last 90 days). */
+  range: {
+    metric: 'bikes' | 'ebikes' | 'docks';
+    sample_count: number;
+    p10: number | null;
+    p25: number | null;
+    median: number | null;
+    p75: number | null;
+    p90: number | null;
+  };
+}
+
 export interface HistogramBucket {
   label: string;
   count: number;
