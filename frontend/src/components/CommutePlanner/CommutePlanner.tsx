@@ -7,13 +7,15 @@ import { useStore } from '../../store';
 import { probabilityToColor } from '../../utils/colorScale';
 import { filterStations } from '../../utils/stationSearch';
 import { CommuteOverview } from './CommuteOverview';
+import { CommuteWindowRibbons } from './CommuteWindowRibbons';
 import { StationAvailabilityPair } from './StationAvailabilityPair';
 import { BikeTypeToggle, ChipSelect, DAY_OPTIONS, timeOptionsFor } from './commuteControls';
 import { CommuteMiniMap } from './CommuteMiniMap';
 import { CommuteRouteMap, ROUTE_DEST_COLOR, ROUTE_ORIGIN_COLOR } from './CommuteRouteMap';
 import { useSavedCommutes } from '../../hooks/useSavedCommutes';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { StationSearchModal } from '../Mobile/StationSearchModal';
+import { MapPinIcon, StationSearchModal } from '../Mobile/StationSearchModal';
+import { StationPickerMap, type PickerLeg } from './StationPickerMap';
 import type { SavedCommute } from '../../hooks/useSavedCommutes';
 import type { CommuteAvailabilitySeries, DayOfWeek, Station } from '../../types';
 import bridgeImg from '../../images/bridge.png';
@@ -171,6 +173,7 @@ function StationCombo({
   dotColor,
   placeholder,
   searchPlaceholder,
+  onChooseOnMap,
 }: {
   stations: Station[];
   value: string;
@@ -178,6 +181,8 @@ function StationCombo({
   dotColor: string;
   placeholder: string;
   searchPlaceholder?: string;
+  /** Opens the map picker with this field's leg active. */
+  onChooseOnMap?: () => void;
 }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -223,6 +228,7 @@ function StationCombo({
           onSelect={onChange}
           onClose={() => setOpen(false)}
           placeholder={searchPlaceholder ?? placeholder}
+          onChooseOnMap={onChooseOnMap}
           dotColor={dotColor}
         />
       )}
@@ -236,6 +242,15 @@ function StationCombo({
               onChange={e => setQuery(e.target.value)}
             />
           </div>
+          {onChooseOnMap && (
+            <div
+              className="station-dropdown-item station-dropdown-map-row"
+              onClick={() => { setOpen(false); setQuery(''); onChooseOnMap(); }}
+            >
+              <MapPinIcon />
+              Choose on map
+            </div>
+          )}
           {filtered.map(s => (
             <div
               key={s.station_id}
@@ -260,8 +275,9 @@ interface Props {
 export function CommutePlanner({ stations }: Props) {
   const { commute, setCommute, selectedDay, selectedTime, setDay, setTime, setMapMode } = useStore();
   const { result, loading } = useCommute();
-  // Half-hour buckets for the whole-week overview.
+  // Half-hour buckets for the whole-week overview; 5-minute for the commute-window ribbons.
   const { matrix } = useCommuteMatrix(30);
+  const { matrix: matrixFine } = useCommuteMatrix(5);
   const { series } = useCommuteAvailabilitySeries();
   const { recent, starred, addRecent, isStarred } = useSavedCommutes();
   const isMobile = useIsMobile();
@@ -286,6 +302,7 @@ export function CommutePlanner({ stations }: Props) {
   const [originId, setOriginId] = useState(commute?.originId ?? '');
   const [destId,   setDestId]   = useState(commute?.destId   ?? '');
   const [bikeType, setBikeType] = useState<'any' | 'classic' | 'ebike'>('ebike');
+  const [pickerLeg, setPickerLeg] = useState<PickerLeg | null>(null);
 
   const cardsScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -371,7 +388,6 @@ export function CommutePlanner({ stations }: Props) {
 
   const hasCommute = result !== null;
   const p = result?.success_probability ?? null;
-  const bikeLabel = bikeType === 'ebike' ? 'E-bikes' : 'Bikes';
   const pColor = probabilityToColor(p);
   const timeOptions = timeOptionsFor(selectedTime);
   const originBikes = seriesValueAt(series, selectedTime, 'bikes_available');
@@ -400,6 +416,7 @@ export function CommutePlanner({ stations }: Props) {
               dotColor={ROUTE_ORIGIN_COLOR}
               placeholder="Choose origin station…"
               searchPlaceholder="Search for your start station"
+              onChooseOnMap={() => setPickerLeg('origin')}
             />
           </div>
           <button className="planner-arrow-btn" onClick={handleSwap} title="Swap origin and destination">
@@ -413,6 +430,7 @@ export function CommutePlanner({ stations }: Props) {
               dotColor={ROUTE_DEST_COLOR}
               placeholder="Choose destination…"
               searchPlaceholder="Search for your end station"
+              onChooseOnMap={() => setPickerLeg('dest')}
             />
           </div>
           <button
@@ -423,7 +441,22 @@ export function CommutePlanner({ stations }: Props) {
             Get forecast
           </button>
         </div>
+        <button className="planner-map-link" onClick={() => setPickerLeg(originId ? 'dest' : 'origin')}>
+          <MapPinIcon />
+          or choose stations on a map
+        </button>
       </div>
+
+      {pickerLeg && (
+        <StationPickerMap
+          stations={stations}
+          originId={originId}
+          destId={destId}
+          initialLeg={pickerLeg}
+          onClose={() => setPickerLeg(null)}
+          onDone={(o, d) => { setOriginId(o); setDestId(d); setPickerLeg(null); }}
+        />
+      )}
 
       {/* Quick-access: starred, then recent, then sample commutes */}
       <div className="commute-cards-wrap">
@@ -609,7 +642,17 @@ export function CommutePlanner({ stations }: Props) {
           />
 
           {/* The whole week at a glance: every half hour, as a heatmap or per-day lines. */}
-          {matrix && <CommuteOverview matrix={matrix} bikeLabel={bikeLabel} />}
+          {matrix && <CommuteOverview matrix={matrix} />}
+
+          {/* Morning and evening windows: bike at the start, dock at the end, Mon–Fri */}
+          {matrixFine && (
+            <CommuteWindowRibbons
+              matrix={matrixFine}
+              originName={stations.find(s => s.station_id === commute.originId)?.station_name ?? 'your start station'}
+              destName={stations.find(s => s.station_id === commute.destId)?.station_name ?? 'your end station'}
+              bikeNoun={bikeType === 'ebike' ? 'e-bike' : 'bike'}
+            />
+          )}
 
           {/* TODO: mini maps hidden 2026-09-07, user wasn't happy with how they looked. Flip to re-enable. */}
           {SHOW_MINIMAPS && (

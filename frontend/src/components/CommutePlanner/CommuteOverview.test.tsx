@@ -27,38 +27,29 @@ function makeMatrix(): CommuteMatrixResponse {
 }
 
 beforeEach(() => {
-  localStorage.clear();
   useStore.setState({ selectedDay: 0, selectedTime: 0 });
 });
 
 describe('CommuteOverview', () => {
-  it('defaults to the heatmap', () => {
-    const { container } = render(<CommuteOverview matrix={makeMatrix()} bikeLabel="Bikes" />);
-    expect(container.querySelectorAll('rect.matrix-cell').length).toBe(7 * 48);
-    expect(container.querySelector('.commute-day-lines')).toBeNull();
-  });
-
-  it('switches to the line view and remembers the choice', () => {
-    const { container, unmount } = render(<CommuteOverview matrix={makeMatrix()} bikeLabel="Bikes" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Lines' }));
-    expect(container.querySelector('.commute-day-lines')).not.toBeNull();
-    expect(container.querySelectorAll('rect.matrix-cell').length).toBe(0);
-    unmount();
-
-    const again = render(<CommuteOverview matrix={makeMatrix()} bikeLabel="Bikes" />);
-    expect(again.container.querySelector('.commute-day-lines')).not.toBeNull();
+  it('shows the heatmap and the day-by-day lines as two separate cards', () => {
+    const { container } = render(<CommuteOverview matrix={makeMatrix()} />);
+    const cards = container.querySelectorAll('.card.commute-overview');
+    expect(cards.length).toBe(2);
+    expect(cards[0].querySelectorAll('rect.matrix-cell').length).toBe(7 * 48);
+    expect(cards[1].querySelector('.commute-day-lines')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Lines' })).toBeNull();
   });
 });
 
 describe('CommuteDayLines', () => {
   it('draws one line per day', () => {
-    const { container } = render(<CommuteDayLines matrix={makeMatrix()} bikeLabel="Bikes" />);
+    const { container } = render(<CommuteDayLines matrix={makeMatrix()} />);
     const lines = container.querySelectorAll('path[stroke^="url(#day-line-"]');
     expect(lines.length).toBe(7);
   });
 
   it('is read-only: clicking a line leaves the day and time alone', () => {
-    const { container } = render(<CommuteDayLines matrix={makeMatrix()} bikeLabel="Bikes" />);
+    const { container } = render(<CommuteDayLines matrix={makeMatrix()} />);
     const svg = container.querySelector('svg')!;
     // Layout at the 900px fallback width: 48px labels, 846px plot, 44px rows + 6px gaps + 20px axis = 370px.
     vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({

@@ -20,7 +20,6 @@ import type { CommuteMatrixBucket, CommuteMatrixResponse } from '../../types';
 
 interface Props {
   matrix: CommuteMatrixResponse;
-  bikeLabel: string;
 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -40,7 +39,7 @@ function axisLabel(h: number): string {
   return `${h > 12 ? h - 12 : h}${h < 12 ? 'a' : 'p'}`;
 }
 
-export function CommuteDayLines({ matrix, bikeLabel }: Props) {
+export function CommuteDayLines({ matrix }: Props) {
   const { selectedDay, selectedTime } = useStore();
   const svgRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<{ row: number; bucket: CommuteMatrixBucket } | null>(null);
@@ -118,7 +117,14 @@ export function CommuteDayLines({ matrix, bikeLabel }: Props) {
       Math.abs(b.departure_minute - selectedTime) < Math.abs(a.departure_minute - selectedTime) ? b : a)
     : null;
   const axisHours = narrow ? [0, 6, 12, 18, 24] : [0, 3, 6, 9, 12, 15, 18, 21, 24];
-  const hoverDay = hover ? days[hover.row].day_of_week : null;
+  // Every day's success chance at the hovered departure time, for the tooltip and dots.
+  const hoverColumn = hover
+    ? days.map((d, row) => ({
+      row,
+      day: d.day_of_week,
+      p: d.buckets.find(b => b.departure_minute === hover.bucket.departure_minute)?.success_probability ?? null,
+    }))
+    : null;
 
   return (
     <div className="commute-day-lines" ref={boxRef}>
@@ -186,12 +192,15 @@ export function CommuteDayLines({ matrix, bikeLabel }: Props) {
             fill={probabilityToColor(selectedBucket.success_probability)} stroke="#fff" strokeWidth={2} pointerEvents="none" />
         )}
 
-        {hover && hover.bucket.success_probability !== null && (
+        {/* Hovered time: a crosshair through every row and a dot on each day's line */}
+        {hoverColumn && hover && (
           <g pointerEvents="none">
             <line x1={x(hover.bucket.departure_minute)} x2={x(hover.bucket.departure_minute)} y1={0} y2={height - AXIS_H}
               stroke="#16181d" strokeWidth={1} opacity={0.2} />
-            <circle cx={x(hover.bucket.departure_minute)} cy={y(hover.row, hover.bucket.success_probability)} r={4}
-              fill="#fff" stroke={probabilityToColor(hover.bucket.success_probability)} strokeWidth={2} />
+            {hoverColumn.map(({ row, p }) => p !== null && (
+              <circle key={row} cx={x(hover.bucket.departure_minute)} cy={y(row, p)} r={row === hover.row ? 4.5 : 3}
+                fill="#fff" stroke={probabilityToColor(p)} strokeWidth={2} />
+            ))}
           </g>
         )}
 
@@ -211,21 +220,15 @@ export function CommuteDayLines({ matrix, bikeLabel }: Props) {
         </div>
       </div>
 
-      {hover && hoverPos && hoverDay !== null && (
-        <div className="chart-hover-tooltip" style={tooltipPosition(hoverPos.x, hoverPos.y, 150, 74)}>
-          <div className="chart-tooltip-title">{DAY_LABELS[hoverDay]} {formatTime(hover.bucket.departure_minute)}</div>
-          <div className="chart-tooltip-row">
-            <span>Success</span>
-            <strong>{fmtPct(hover.bucket.success_probability)}</strong>
-          </div>
-          <div className="chart-tooltip-row">
-            <span>{bikeLabel} avail.</span>
-            <strong>{fmtPct(hover.bucket.bike_probability)}</strong>
-          </div>
-          <div className="chart-tooltip-row">
-            <span>Dock avail.</span>
-            <strong>{fmtPct(hover.bucket.dock_probability)}</strong>
-          </div>
+      {hover && hoverPos && hoverColumn && (
+        <div className="chart-hover-tooltip day-lines-tooltip" style={tooltipPosition(hoverPos.x, hoverPos.y, 150, 168)}>
+          <div className="chart-tooltip-title">Leaving at {formatTime(hover.bucket.departure_minute)}</div>
+          {hoverColumn.map(({ row, day, p }) => (
+            <div key={day} className={`chart-tooltip-row${row === hover.row ? ' current' : ''}`}>
+              <span>{DAY_LABELS[day]}</span>
+              <strong style={{ color: p !== null ? probabilityToColor(p) : undefined }}>{fmtPct(p)}</strong>
+            </div>
+          ))}
         </div>
       )}
     </div>

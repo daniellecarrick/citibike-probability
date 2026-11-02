@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { vi, beforeEach } from 'vitest';
-import { mockSetData, mockSetPaintProperty, mockSetLayoutProperty, mockAddSource, mockAddLayer, mockGetCanvas, mockFlyTo, mockFitBounds, mockRemove, mockOn, mockOff, mockGetSource, resetMapHandlers } from './mocks/mapboxgl';
+import { mockSetData, mockSetPaintProperty, mockSetLayoutProperty, mockAddSource, mockAddLayer, mockGetCanvas, mockFlyTo, mockFitBounds, mockRemove, mockOn, mockOff, mockGetSource, mockProject, resetMapHandlers } from './mocks/mapboxgl';
 
 vi.mock('mapbox-gl', () => {
   const MapboxMock = {
@@ -20,6 +20,7 @@ vi.mock('mapbox-gl', () => {
         remove: mockRemove,
         isStyleLoaded: vi.fn(() => true),
         addControl: vi.fn(),
+        project: mockProject,
       };
     }),
     accessToken: '',
@@ -34,6 +35,8 @@ vi.mock('mapbox-gl', () => {
         setLngLat: vi.fn().mockReturnThis(),
         addTo: vi.fn().mockReturnThis(),
         remove: vi.fn(),
+        getLngLat: vi.fn(() => ({ lng: 0, lat: 0 })),
+        getElement: vi.fn(() => document.createElement('div')),
       };
     }),
     Popup: vi.fn(function PopupMock() {
@@ -61,5 +64,7 @@ beforeEach(() => {
   mockOn.mockClear();
   mockOff.mockClear();
   mockGetSource.mockClear();
+  mockProject.mockReset();
+  mockProject.mockImplementation(() => ({ x: 0, y: 0 }));
   resetMapHandlers();
 });

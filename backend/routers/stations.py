@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/stations", tags=["stations"])
 
 DayParam = Annotated[int, Query(ge=0, le=6, description="Day of week: 0=Mon … 6=Sun")]
 TimeParam = Annotated[int, Query(ge=0, le=1439, description="Minutes since midnight")]
+ContextMetric = Annotated[str, Query(pattern="^(bikes|ebikes|docks)$", description="Which count the typical range describes")]
 
 
 @router.get("")
@@ -31,6 +32,33 @@ def get_station(station_id: str, conn: sqlite3.Connection = Depends(get_db)):
     if not row:
         raise HTTPException(status_code=404, detail="Station not found")
     return dict(row)
+
+
+@router.get("/{station_id}/context")
+def get_station_context(
+    station_id: str,
+    day: DayParam = 0,
+    time: TimeParam = 0,
+    metric: ContextMetric = "bikes",
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """
+    What the station side panel shows at the selected time: the typical
+    range of `metric` at this day/time (exact percentiles from raw snapshots).
+    """
+    row = conn.execute(
+        "SELECT station_id, capacity FROM stations WHERE station_id = ?", (station_id,)
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Station not found")
+
+    stats = get_stability_metrics(conn, station_id, day, time, metric, exact=True)  # type: ignore[arg-type]
+
+    return {
+        "station_id": station_id,
+        "capacity": row["capacity"],
+        "range": {k: stats[k] for k in ("metric", "sample_count", "p10", "p25", "median", "p75", "p90")},
+    }
 
 
 @router.get("/{station_id}/detail")

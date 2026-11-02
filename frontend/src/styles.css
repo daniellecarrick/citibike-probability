@@ -361,7 +361,8 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: 320px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
   animation: fadeIn .15s ease;
 }
 .map-options-panel .time-scrubber-panel { padding: 0; border: none; }
@@ -456,6 +457,7 @@ h1 {
   box-shadow: var(--shadow-float);
   pointer-events: none;
 }
+.route-map-marker.label-left .route-map-marker-label { left: auto; right: 20px; }
 .route-map-marker-name { font-size: 12px; font-weight: 600; color: var(--ink); }
 .route-map-marker-stat { font-size: 12px; font-weight: 400; margin-top: 1px; }
 /* Station facts listed under the map; only shown on phones, where the
@@ -596,6 +598,136 @@ h1 {
   flex-shrink: 0;
   margin-bottom: 0;
 }
+
+/* "or choose stations on a map" under the station fields */
+.planner-map-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  color: var(--accent-blue-deep);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+}
+.planner-map-link:hover { text-decoration: underline; }
+.station-dropdown-map-row { color: var(--accent-blue-deep); font-weight: 600; border-bottom: 1px solid var(--divider); }
+
+/* ─── Station picker map (modal) ─────────────────────────────────── */
+.picker-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 450;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(0,0,0,.32);
+  animation: fadeIn .15s ease;
+}
+.picker-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 960px;
+  height: min(760px, 100%);
+  background: var(--card-bg);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-drawer);
+  overflow: hidden;
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px 12px 20px;
+  border-bottom: 1px solid var(--card-border);
+  flex-shrink: 0;
+}
+.picker-title { font-family: var(--serif); font-size: 20px; font-weight: 600; color: var(--ink); }
+.picker-cancel {
+  height: 40px;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  color: var(--accent-blue-deep);
+  font-size: 15px;
+  font-weight: 600;
+}
+.picker-map-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
+.picker-map { flex: 1; min-height: 0; }
+.picker-tooltip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  max-width: 240px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-tooltip);
+  /* Sits above the dot, centered; the align/below variants keep it inside the map. */
+  transform: translate(-50%, calc(-100% - 12px));
+  white-space: nowrap;
+}
+.picker-tooltip-left   { transform: translate(-16px, calc(-100% - 12px)); }
+.picker-tooltip-right  { transform: translate(calc(-100% + 16px), calc(-100% - 12px)); }
+.picker-tooltip.below                       { transform: translate(-50%, 12px); }
+.picker-tooltip-left.below                  { transform: translate(-16px, 12px); }
+.picker-tooltip-right.below                 { transform: translate(calc(-100% + 16px), 12px); }
+.picker-tooltip-name { font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.picker-tooltip-hood {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.picker-tooltip-action { margin-top: 3px; font-size: 12px; color: var(--accent-blue-deep); font-weight: 500; }
+.picker-card {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--card-border);
+  flex-shrink: 0;
+}
+.picker-leg {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  background: var(--card-bg);
+  text-align: left;
+}
+.picker-leg.active { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.picker-leg-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.picker-leg-text { display: flex; flex-direction: column; min-width: 0; }
+.picker-leg-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.picker-leg-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.picker-leg-name.empty { font-weight: 400; color: var(--text-muted); }
+.picker-done { flex-shrink: 0; padding: 0 22px; font-size: 15px; }
+.picker-done:disabled { opacity: .45; cursor: default; }
 
 /* ─── Sample / saved commute cards ───────────────────────────────── */
 .commute-cards-wrap {
@@ -814,13 +946,13 @@ h1 {
   font-weight: 600;
   color: var(--ink);
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align-last: center;
+  border-radius: 7px;
 }
-.stepper-input::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  opacity: 0.5;
-  transition: opacity .15s;
-}
-.stepper-input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+.stepper-input:hover { background: var(--control-track); }
+.stepper-input:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: -2px; }
 
 /* ─── Availability chart (bikes @ origin vs. docks @ destination) ──── */
 /* ─── Station pair: bikes at the origin, docks at the destination ── */
@@ -1118,19 +1250,16 @@ h1 {
 
 /* ─── Chart hover tooltip (shared by matrix/line charts) ─────────── */
 /* Commute week view: 7-day × AM/PM scorecard + zoom chart */
-.commute-overview { width: 100%; max-width: 1000px; }
+.commute-overview, .commute-ribbons { width: 100%; max-width: 1000px; }
+.commute-ribbons .card-title { margin-bottom: 4px; }
+.commute-ribbons .matrix-context { margin-bottom: 16px; max-width: 72ch; }
+.commute-ribbons .matrix-context strong { font-family: var(--mono); font-size: 11px; color: var(--ink); letter-spacing: 0.04em; }
+.commute-ribbons-windows { display: flex; flex-direction: column; gap: 20px; }
+.commute-ribbons .commute-window-block + .commute-window-block { margin-top: 0; }
 
-.commute-overview-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-}
-.commute-overview-titles { min-width: 0; }
-.commute-overview-titles .card-title { margin-bottom: 4px; }
-.commute-overview-titles .matrix-context { margin-bottom: 0; }
-.commute-overview-toggle { flex-shrink: 0; }
+.commute-overview-head { margin-bottom: 14px; }
+.commute-overview-head .card-title { margin-bottom: 4px; }
+.commute-overview-head .matrix-context { margin-bottom: 0; }
 .commute-matrix-embedded { border: none; box-shadow: none; padding: 0; max-width: none; background: none; }
 .commute-day-lines { width: 100%; }
 
@@ -1162,6 +1291,8 @@ h1 {
 }
 .chart-tooltip-row strong { color: var(--ink); font-weight: 600; }
 .chart-tooltip-row + .chart-tooltip-row { margin-top: 2px; }
+.day-lines-tooltip .chart-tooltip-row span { font-family: var(--mono); font-size: 11px; }
+.day-lines-tooltip .chart-tooltip-row.current span { color: var(--ink); font-weight: 700; }
 
 /* ─── Station detail (Station Details tab) ──────────────────────── */
 .station-empty {
@@ -1258,6 +1389,9 @@ h1 {
   border-radius: 12px;
   border: 1px solid transparent;
 }
+.station-day-headline { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.4; text-wrap: balance; }
+.station-day-sub { font-size: 12px; color: var(--text-muted); margin: 2px 0 10px; }
+.station-day-chart { width: 100%; }
 .commute-headline { font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.5; margin-bottom: 2px; }
 .commute-subheadline { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px; }
 .commute-window-block { width: 100%; }
@@ -1270,21 +1404,18 @@ h1 {
 .focus-commute { border-color: currentColor !important; }
 
 /* Nearby stations */
-.nearby-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 0;
-  border-top: 1px solid var(--divider);
-  cursor: pointer;
-  transition: opacity .1s;
-}
-.nearby-row:first-child { border-top: none; }
-.nearby-row:hover { opacity: 0.75; }
-.nearby-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.nearby-name { flex: 1; font-size: 13px; color: var(--ink); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nearby-dist { font-family: var(--mono); font-size: 10px; color: var(--text-faint); white-space: nowrap; }
-.nearby-pct { font-size: 13px; font-weight: 600; white-space: nowrap; }
+/* Typical range bar (station panel) */
+.typical-range-headline { font-size: 14px; color: var(--text-muted); margin-bottom: 10px; }
+.typical-range-headline strong { color: var(--ink); font-weight: 700; }
+.typical-range-bar { position: relative; height: 14px; border-radius: 7px; background: var(--control-track); }
+.typical-range-outer, .typical-range-inner { position: absolute; top: 0; bottom: 0; border-radius: 7px; }
+.typical-range-outer { background: rgba(31,162,255,.22); }
+.typical-range-inner { background: var(--scale-1); }
+.typical-range-inner.typical-range-ebikes { background: #2d5aff; }
+.typical-range-inner.typical-range-docks { background: var(--ink); }
+.typical-range-median { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--card-bg); box-shadow: 0 0 0 1px var(--ink); }
+.typical-range-scale { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
+.typical-range-empty { font-size: 13px; color: var(--text-muted); }
 
 /* ─── Metric group (header control) ─────────────────────────────── */
 .metric-group {
@@ -1319,17 +1450,18 @@ h1 {
   border-radius: var(--r-card);
   padding: 14px 16px;
 }
-.scrubber-day-controls {
+.time-scrubber-panel { display: flex; flex-direction: column; gap: 14px; }
+.time-scrubber-panel .metric-group { align-items: stretch; gap: 6px; }
+.scrubber-day-pills { width: 100%; gap: 4px; padding: 4px; }
+.scrubber-day-pills .day-pill { height: 32px; min-width: 36px; font-size: 13px; }
+.scrubber-time-controls {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
 }
-.scrubber-day-controls .day-pills-track { flex: 1; }
-/* Match the 34px pill-track height so the stepper and play button
-   don't stick out above/below the rest of the row. */
-.scrubber-day-controls .time-stepper { height: 34px; }
-.scrubber-day-controls .play-btn { width: 34px; height: 34px; }
+.scrubber-time-controls .time-stepper { flex: 1; min-width: 0; height: 36px; }
+.scrubber-time-controls .play-btn { width: 36px; height: 36px; }
 .scrubber-legend {
   display: flex;
   align-items: center;
@@ -1401,6 +1533,8 @@ h1 {
   text-transform: uppercase;
   margin-bottom: 8px;
 }
+.hover-tooltip-value { font-size: 12px; color: var(--text-muted); margin: -4px 0 8px; }
+.hover-tooltip-value strong { color: var(--ink); font-weight: 600; }
 .hover-tooltip-chart {
   display: block;
   width: 100%;
@@ -2135,9 +2269,7 @@ h1 {
   .scale-hint { font-size: 13px; }
   .matrix-context { font-size: 14px; }
 
-  .commute-overview-head { flex-direction: column; gap: 12px; }
-  .commute-overview-toggle { align-self: stretch; }
-  .commute-overview-toggle .mode-toggle-btn { flex: 1; height: var(--tap); font-size: 14px; }
+
 
   .station-pair-sub { font-size: 14px; margin: -6px 0 14px; }
   .pair-panel-station { font-size: 16px; }
@@ -2146,6 +2278,36 @@ h1 {
   .chart-hover-tooltip { min-width: 0; }
   .chart-tooltip-title { font-size: 11px; }
   .chart-tooltip-row { font-size: 13px; }
+
+  /* ── Station picker map: full screen ─────────────────────────── */
+  .planner-map-link { min-height: var(--tap); margin-top: 2px; font-size: 15px; }
+  .mobile-selector-map-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--accent-blue-deep);
+  }
+  .mobile-selector-map-row .mobile-selector-item-name { color: inherit; font-weight: 600; }
+  .picker-modal { padding: 0; background: var(--card-bg); }
+  .picker-panel {
+    max-width: none;
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+    padding-top: env(safe-area-inset-top);
+  }
+  .picker-head { padding: 6px 6px 6px var(--gutter); }
+  .picker-title { font-size: 19px; }
+  .picker-cancel { height: var(--tap); font-size: 16px; }
+  .picker-card {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom));
+  }
+  .picker-leg { min-height: 56px; }
+  .picker-leg-label { font-size: 11px; }
+  .picker-leg-name { font-size: 16px; }
+  .picker-done { height: 52px; font-size: 16px; }
 
   /* ── Map screen ──────────────────────────────────────────────── */
   .mobile-app-body {
@@ -2158,7 +2320,8 @@ h1 {
     width: 100%;
     height: 100%;
   }
-  .mobile-app-body .mapboxgl-ctrl-group button { width: var(--tap); height: var(--tap); }
+  /* Every map's +/−, locate-me, etc.: full-size tap targets on phones */
+  .mapboxgl-ctrl-group button { width: var(--tap); height: var(--tap); }
   .mobile-app-body .mapboxgl-ctrl-bottom-right { margin-bottom: env(safe-area-inset-bottom); }
   .mobile-app-body .mapboxgl-ctrl-bottom-left { margin-bottom: env(safe-area-inset-bottom); }
 

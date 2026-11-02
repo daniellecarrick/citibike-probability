@@ -96,7 +96,16 @@ await page.keyboard.type('bedford');
 await page.waitForTimeout(300);
 await shot('02-station-search');
 await audit('Station search');
-await page.locator('.mobile-selector-item').first().tap();
+await page.locator('.mobile-selector-item:not(.mobile-selector-map-row)').first().tap();
+await page.waitForTimeout(300);
+
+// Choose stations on a map
+await page.locator('.planner-map-link').tap();
+await page.waitForSelector('.picker-map');
+await page.waitForTimeout(3000);
+await shot('02b-station-picker');
+await audit('Station picker map');
+await page.locator('.picker-cancel').tap();
 await page.waitForTimeout(300);
 
 // Results
@@ -113,14 +122,14 @@ const pair = page.locator('.station-pair');
 await pair.scrollIntoViewIfNeeded();
 await pair.screenshot({ path: `${OUT}/03a-station-pair.png` });
 
-// Week overview: heatmap (default), then the stacked line view
-const overview = page.locator('.commute-overview');
-await overview.scrollIntoViewIfNeeded();
-await overview.screenshot({ path: `${OUT}/03b-overview-heatmap.png` });
-await page.getByRole('button', { name: 'Lines', exact: true }).tap();
-await page.waitForTimeout(400);
-await overview.screenshot({ path: `${OUT}/03c-overview-lines.png` });
-await audit('Week overview (lines)');
+// Week overview: heatmap card, then the day-by-day lines card
+const heatmapCard = page.locator('.commute-overview-heatmap');
+await heatmapCard.scrollIntoViewIfNeeded();
+await heatmapCard.screenshot({ path: `${OUT}/03b-overview-heatmap.png` });
+const linesCard = page.locator('.commute-overview-lines');
+await linesCard.scrollIntoViewIfNeeded();
+await linesCard.screenshot({ path: `${OUT}/03c-overview-lines.png` });
+await audit('Week overview cards');
 // Charts are read-only: tapping Thursday's line near 6 PM must not change the day or time
 {
   const box = await page.locator('.commute-day-lines svg').boundingBox();
@@ -135,8 +144,6 @@ await audit('Week overview (lines)');
   console.log(`\n${ok ? '✓' : '✗'} Tapping a day line left the day/time unchanged (day=${day} time=${time})`);
   if (!ok) problems.push('Tapping a day line changed the day/time');
 }
-// Back to the default so later screenshots match a first visit
-await page.getByRole('button', { name: 'Heatmap', exact: true }).tap();
 
 // Touch-scrub the pick-up chart: drag shows values, release must not change the time
 await page.evaluate(() => window.scrollTo(0, 0));
