@@ -1,13 +1,24 @@
 import sqlite3
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from analytics.probability import AVAILABILITY_THRESHOLD, EPOCH_MONDAY_OFFSET, SECONDS_PER_DAY, SECONDS_PER_WEEK
-from database import get_db
+from database import get_db, raw_snapshots_available
 from local_time import LOCAL_TS
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+def require_raw_snapshots(conn: sqlite3.Connection = Depends(get_db)) -> None:
+    """These pages report on the raw collection log, which a frozen dataset
+    archives off the server. Answer clearly instead of failing on a missing table."""
+    if not raw_snapshots_available(conn):
+        raise HTTPException(
+            status_code=503,
+            detail="Raw snapshots have been archived: collection stopped and this dataset is frozen.",
+        )
+
+
+router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_raw_snapshots)])
 
 SLOTS_PER_WEEK = 2016
 SLOTS_PER_DAY = 288

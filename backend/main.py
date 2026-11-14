@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from collector.poller import run as run_collector
+from database import raw_snapshots_available
 from routers import admin, commute, map, stations
 
 # Without this, collector.poller's log.info() calls are silently dropped —
@@ -91,8 +92,14 @@ def health():
         # COUNT(*) back: it scans a whole index (15M+ rows), which on a cold
         # container outlasted every Railway healthcheck attempt and failed
         # the deploy.
-        row = conn.execute("SELECT MAX(timestamp) AS latest FROM station_snapshots").fetchone()
+        if raw_snapshots_available(conn):
+            latest = conn.execute("SELECT MAX(timestamp) AS latest FROM station_snapshots").fetchone()["latest"]
+        else:
+            # Frozen dataset with the raw table archived: the last collected
+            # snapshot is a known constant (DATA_END_TS), not something to query.
+            frozen_end = os.environ.get("DATA_END_TS")
+            latest = int(frozen_end) if frozen_end else None
         conn.close()
-        return {"status": "ok", "latest_timestamp": row["latest"]}
+        return {"status": "ok", "latest_timestamp": latest}
     except Exception as exc:
         return {"status": "error", "detail": str(exc)}

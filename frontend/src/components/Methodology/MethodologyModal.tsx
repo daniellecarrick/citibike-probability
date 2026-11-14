@@ -51,21 +51,24 @@ export function MethodologyModal({ onClose }: Props) {
           <section className="methodology-section">
             <h3>Data collection</h3>
             <p>
-              Live station status is polled from Citi Bike's public GBFS feed every{' '}
-              <strong>5 minutes</strong>, so the freshest an underlying data point can be
-              is a few minutes old. Station metadata (location, capacity) refreshes
-              hourly.
+              Station status was polled from Citi Bike's public GBFS feed every{' '}
+              <strong>5 minutes</strong> from <strong>May 30, 2026</strong> to{' '}
+              <strong>November 13, 2026</strong>. Collection has since been{' '}
+              <strong>stopped</strong> to avoid ongoing hosting costs, so the numbers in
+              this app are frozen and don't reflect anything after that date. Citi Bike's
+              seasonal and long-term patterns shift slowly, so they should still be a
+              reasonable guide.
             </p>
           </section>
 
           <section className="methodology-section">
-            <h3>90-day rolling history</h3>
+            <h3>90-day history</h3>
             <p>
-              Only snapshots from the last <strong>90 days</strong> count toward a
-              probability. Before real collection had 90 days of history, the app
-              backfilled realistic synthetic demand curves so the map wasn't empty on
-              day one — that seeded data ages out automatically as real data
-              accumulates and is never mixed with real data beyond the 90-day window.
+              Probabilities are based on the final <strong>90 days</strong> of collection
+              (roughly mid-August to November 13, 2026). Before real collection had 90
+              days of history, the app was backfilled with realistic synthetic demand
+              curves so the map wasn't empty on day one; by the time collection stopped
+              that seeded data had aged out of the 90-day window entirely.
             </p>
           </section>
 

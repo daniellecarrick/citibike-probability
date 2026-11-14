@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from analytics.probability import get_availability_probability
 from analytics.stability import get_stability_metrics
+from analytics.station_ranges import fetch_station_range, precomputed_ranges_enabled
 from analytics.stress import get_stress_score
 from database import get_db
 
@@ -52,7 +53,14 @@ def get_station_context(
     if not row:
         raise HTTPException(status_code=404, detail="Station not found")
 
-    stats = get_stability_metrics(conn, station_id, day, time, metric, exact=True)  # type: ignore[arg-type]
+    # Frozen dataset: read the pre-computed exact percentiles (station_range)
+    # so the raw snapshots aren't needed. Otherwise — or if that table hasn't
+    # been built yet — scan the raw snapshots for the exact values.
+    stats = None
+    if precomputed_ranges_enabled():
+        stats = fetch_station_range(conn, station_id, day, time, metric)
+    if stats is None:
+        stats = get_stability_metrics(conn, station_id, day, time, metric, exact=True)  # type: ignore[arg-type]
 
     return {
         "station_id": station_id,
