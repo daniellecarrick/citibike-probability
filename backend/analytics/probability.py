@@ -16,6 +16,7 @@ Python's datetime epoch (Jan 1, 1970) was a Thursday, so:
   Monday offset = 4 * 86400 = 345600
 """
 import gzip
+import os
 import sqlite3
 import time
 from typing import Literal
@@ -48,8 +49,16 @@ METRIC_COLUMN: dict[str, str] = {
 AVAILABILITY_THRESHOLD = 2
 
 
+def _reference_ts() -> int:
+    """The "now" that lookback windows count back from: the real clock while
+    collecting, or DATA_END_TS (last collected snapshot) once collection has
+    been stopped, so a frozen dataset doesn't age out of its own window."""
+    frozen_end = os.environ.get("DATA_END_TS")
+    return int(frozen_end) if frozen_end else int(time.time())
+
+
 def _since(lookback_days: int) -> int:
-    return int(time.time()) - lookback_days * SECONDS_PER_DAY
+    return _reference_ts() - lookback_days * SECONDS_PER_DAY
 
 
 def _week_window(day_of_week: int, time_of_day: int, window_minutes: int) -> tuple[int, int, int, int]:

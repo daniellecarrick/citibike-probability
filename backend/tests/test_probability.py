@@ -61,6 +61,19 @@ def test_probability_no_snapshots_returns_none(db):
 
 # ── Lookback window ───────────────────────────────────────────────────────────
 
+def test_since_counts_back_from_data_end_when_frozen(monkeypatch):
+    """DATA_END_TS anchors lookback windows to the last collected snapshot."""
+    from analytics.probability import _since
+    monkeypatch.setenv("DATA_END_TS", "1000000000")
+    assert _since(90) == 1_000_000_000 - 90 * SECONDS_PER_DAY
+
+
+def test_since_uses_real_clock_when_not_frozen(monkeypatch):
+    import time
+    from analytics.probability import _since
+    monkeypatch.delenv("DATA_END_TS", raising=False)
+    assert abs(_since(0) - int(time.time())) <= 2
+
 def test_old_snapshots_excluded(db):
     """Snapshots older than lookback_days are not counted."""
     import time
