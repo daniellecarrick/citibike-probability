@@ -53,7 +53,7 @@ export function MethodologyModal({ onClose }: Props) {
             <p>
               Station status was polled from Citi Bike's public GBFS feed every{' '}
               <strong>5 minutes</strong> from <strong>May 30, 2026</strong> to{' '}
-              <strong>November 13, 2026</strong>. Collection has since been{' '}
+              <strong>November 15, 2026</strong>. Collection has since been{' '}
               <strong>stopped</strong> to avoid ongoing hosting costs, so the numbers in
               this app are frozen and don't reflect anything after that date. Citi Bike's
               seasonal and long-term patterns shift slowly, so they should still be a
@@ -65,7 +65,7 @@ export function MethodologyModal({ onClose }: Props) {
             <h3>90-day history</h3>
             <p>
               Probabilities are based on the final <strong>90 days</strong> of collection
-              (roughly mid-August to November 13, 2026). Before real collection had 90
+              (roughly mid-August to November 15, 2026). Before real collection had 90
               days of history, the app was backfilled with realistic synthetic demand
               curves so the map wasn't empty on day one; by the time collection stopped
               that seeded data had aged out of the 90-day window entirely.
