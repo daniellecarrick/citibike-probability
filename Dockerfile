@@ -17,6 +17,6 @@ ENV DB_PATH=/data/citibike.db
 #                       so results don't age out of an empty window.
 # Remove both to resume live collection.
 ENV RUN_COLLECTOR=0
-ENV DATA_END_TS=1794616529
+ENV DATA_END_TS=1794747487
 
 CMD ["sh", "-c", "mkdir -p /data && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
