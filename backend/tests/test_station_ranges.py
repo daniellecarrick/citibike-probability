@@ -191,3 +191,45 @@ def test_dst_ranges_are_cached_and_unchanged():
     assert (1772953200, 1793512800) in first
     assert local_time.utc_offset_seconds(1772953199) == local_time.EST_OFFSET_SECONDS
     assert local_time.utc_offset_seconds(1772953200) == local_time.EDT_OFFSET_SECONDS
+
+
+# ── sequential scan ───────────────────────────────────────────────────────────
+
+def _table(db):
+    return [tuple(r) for r in db.execute(
+        "SELECT station_id, day_of_week, metric, data FROM station_range ORDER BY 1, 2, 3"
+    )]
+
+
+@pytest.mark.parametrize("shard_size", [1, 2, 700])
+def test_result_is_independent_of_shard_size(frozen_db, shard_size):
+    expected = _table(frozen_db)
+    build_station_ranges(frozen_db, int(time.time()), shard_size=shard_size)
+    assert _table(frozen_db) == expected
+
+
+def test_scan_ignores_rows_older_than_the_window_and_unknown_stations(db):
+    end_ts = int(time.time())
+    # In the window.
+    _insert(db, "S1", timestamp_for(1, 480, 2), 7, 1, 3)
+    # Older than 90 days (rowid after the in-window one, to catch a rowid-only cutoff).
+    _insert(db, "S1", timestamp_for(1, 480, 20), 30, 1, 3)
+    # Station not in `stations`.
+    _insert(db, "GHOST", timestamp_for(1, 480, 2), 5, 1, 3)
+    db.commit()
+    build_station_ranges(db, end_ts)
+    assert db.execute("SELECT COUNT(DISTINCT station_id) FROM station_range").fetchone()[0] == 1
+    from analytics.station_ranges import fetch_station_range
+    stats = fetch_station_range(db, "S1", 1, 480, "bikes")
+    assert stats["sample_count"] == 1 and stats["median"] == 7
+
+
+def test_out_of_order_rowids_are_still_found(db):
+    """A newer-timestamp row inserted before an older one must not be missed."""
+    end_ts = int(time.time())
+    _insert(db, "S1", timestamp_for(1, 480, 1), 4, 0, 0)   # newest, lowest rowid
+    _insert(db, "S1", timestamp_for(1, 480, 9), 6, 0, 0)   # older, higher rowid
+    db.commit()
+    build_station_ranges(db, end_ts)
+    from analytics.station_ranges import fetch_station_range
+    assert fetch_station_range(db, "S1", 1, 480, "bikes")["sample_count"] == 2
