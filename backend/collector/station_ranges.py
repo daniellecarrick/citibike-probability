@@ -11,8 +11,13 @@ backend directory (e.g. in a Railway shell, where DB_PATH is already set):
                                                    # else at the newest snapshot
     python -m collector.station_ranges --end-ts 1794748387
 
-Pure standard library, single pass per station via idx_snap_station_time, so
-memory stays small (one station's ~26k rows at a time).
+Pure standard library. The table is stored in time order, so reading one
+station at a time through idx_snap_station_time is a random read per row
+(measured ~13 s/station on the production volume, ~9.5 h in all). Instead the
+90-day window is read sequentially, in a few passes: each pass streams the
+table once and keeps only a shard of stations (SHARD_SIZE; ~16 bytes per row,
+so ~250 MB for 700 stations at ~23k rows each) in compact arrays, then builds
+those stations.
 
 The table is built under a temporary name (station_range_new) and swapped in
 only after a station-count check passes, so an interrupted run never leaves
@@ -29,6 +34,7 @@ import os
 import sqlite3
 import statistics
 import time
+from array import array
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from typing import Optional
@@ -48,13 +54,17 @@ LOOKBACK_DAYS = 90
 WINDOW_SECONDS = 15 * 60
 SLOT_SECONDS = 300
 COMMIT_EVERY_STATIONS = 25
+SHARD_SIZE = 700          # stations buffered per sequential pass (~16 bytes/row)
+FETCH_ROWS = 100_000
 NEW_TABLE = "station_range_new"
 
-# Column order here is RANGE_METRICS order: bikes, ebikes, docks.
-_SNAPSHOT_QUERY = """
-    SELECT timestamp, available_bikes, available_ebikes, available_docks
-    FROM station_snapshots
-    WHERE station_id = ? AND timestamp >= ?
+# NOT INDEXED forces a rowid-ordered table scan (the table is in time order, so
+# this is sequential I/O); otherwise the planner may pick idx_snap_time and
+# fetch table rows through the index. Rows are filtered by timestamp in Python.
+_SCAN_QUERY = """
+    SELECT station_id, timestamp, available_bikes, available_ebikes, available_docks
+    FROM station_snapshots NOT INDEXED
+    WHERE rowid >= ?
 """
 
 
@@ -106,7 +116,9 @@ def _station_blobs(rows) -> dict[tuple[int, str], bytes]:
     return blobs
 
 
-def build_station_ranges(conn: sqlite3.Connection, end_ts: Optional[int] = None, resume: bool = False) -> int:
+def build_station_ranges(
+    conn: sqlite3.Connection, end_ts: Optional[int] = None, resume: bool = False, shard_size: int = SHARD_SIZE,
+) -> int:
     """Builds station_range and swaps it in; returns the number of rows written."""
     if end_ts is None:
         env_end = os.environ.get("DATA_END_TS")
@@ -130,19 +142,46 @@ def build_station_ranges(conn: sqlite3.Connection, end_ts: Optional[int] = None,
         log.info(f"Resuming: {len(done)} stations already built")
 
     t0 = time.monotonic()
-    for n, station_id in enumerate(station_ids, start=1):
-        if station_id not in done:
-            rows = conn.execute(_SNAPSHOT_QUERY, (station_id, since)).fetchall()
-            if rows:
-                blobs = _station_blobs(rows)
+    todo = [sid for sid in station_ids if sid not in done]
+    first_rowid = conn.execute(
+        "SELECT MIN(rowid) FROM station_snapshots WHERE timestamp >= ?", (since,)
+    ).fetchone()[0]
+    if first_rowid is None:
+        todo = []
+    shards = [todo[i:i + shard_size] for i in range(0, len(todo), shard_size)]
+    for shard_no, shard in enumerate(shards, start=1):
+        buffers = {sid: (array("q"), array("i"), array("i"), array("i")) for sid in shard}
+        scanned = 0
+        cursor = conn.execute(_SCAN_QUERY, (first_rowid,))
+        while True:
+            batch = cursor.fetchmany(FETCH_ROWS)
+            if not batch:
+                break
+            scanned += len(batch)
+            for sid, ts, bikes, ebikes, docks in batch:
+                if ts >= since:
+                    buf = buffers.get(sid)
+                    if buf is not None:
+                        buf[0].append(ts)
+                        buf[1].append(bikes)
+                        buf[2].append(ebikes)
+                        buf[3].append(docks)
+        cursor.close()
+        log.info(f"pass {shard_no}/{len(shards)}: scanned {scanned:,} rows in {time.monotonic() - t0:.0f}s")
+
+        for n, station_id in enumerate(shard, start=1):
+            ts_a, b_a, e_a, d_a = buffers.pop(station_id)
+            if len(ts_a):
+                blobs = _station_blobs(zip(ts_a, b_a, e_a, d_a))
                 conn.executemany(
                     f"INSERT OR REPLACE INTO {NEW_TABLE} (station_id, day_of_week, metric, data) VALUES (?, ?, ?, ?)",
                     [(station_id, dow, metric, blob) for (dow, metric), blob in blobs.items()],
                 )
                 done.add(station_id)
-        if n % COMMIT_EVERY_STATIONS == 0:
-            conn.commit()
-            log.info(f"{n}/{len(station_ids)} stations, {len(done)} with data, {time.monotonic() - t0:.0f}s")
+            if n % COMMIT_EVERY_STATIONS == 0:
+                conn.commit()
+        conn.commit()
+        log.info(f"pass {shard_no}/{len(shards)} built; {len(done)} stations with data, {time.monotonic() - t0:.0f}s")
     conn.commit()
 
     built_stations, written = conn.execute(
@@ -170,11 +209,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build the station_range table from station_snapshots.")
     parser.add_argument("--end-ts", type=int, default=None,
                         help="Unix UTC end of the 90-day window (default: DATA_END_TS, else newest snapshot)")
+    parser.add_argument("--shard-size", type=int, default=SHARD_SIZE,
+                        help="Stations buffered per sequential pass; fewer passes = more memory (default %(default)s)")
     parser.add_argument("--resume", action="store_true",
                         help="Continue an interrupted build (keeps station_range_new; use the same end timestamp)")
     args = parser.parse_args()
     connection = get_connection()
     try:
-        build_station_ranges(connection, args.end_ts, resume=args.resume)
+        build_station_ranges(connection, args.end_ts, resume=args.resume, shard_size=args.shard_size)
     finally:
         connection.close()
