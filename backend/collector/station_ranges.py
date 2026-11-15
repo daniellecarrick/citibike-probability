@@ -9,7 +9,7 @@ backend directory (e.g. in a Railway shell, where DB_PATH is already set):
 
     python -m collector.station_ranges            # window ends at DATA_END_TS,
                                                    # else at the newest snapshot
-    python -m collector.station_ranges --end-ts 1794616529
+    python -m collector.station_ranges --end-ts 1794748387
 
 Pure standard library, single pass per station via idx_snap_station_time, so
 memory stays small (one station's ~26k rows at a time). Safe to re-run — it

@@ -17,6 +17,6 @@ COPY . .
 #                       Set to the final /api/health latest_timestamp after deploy.
 # Remove both to resume live collection.
 ENV RUN_COLLECTOR=0
-ENV DATA_END_TS=1794747487
+ENV DATA_END_TS=1794748387
 
 CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
