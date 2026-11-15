@@ -113,3 +113,81 @@ def test_context_endpoint_ignores_precomputed_when_not_frozen(client, frozen_db,
     frozen_db.commit()
     body = client.get("/api/stations/S1/context", params={"day": 1, "time": 480, "metric": "bikes"}).json()
     assert body["range"]["sample_count"] > 0
+
+
+# ── build safety ──────────────────────────────────────────────────────────────
+
+def _range_rows(db):
+    return db.execute("SELECT COUNT(*) FROM station_range").fetchone()[0]
+
+
+def test_failed_build_leaves_live_table_untouched(frozen_db, monkeypatch):
+    before = frozen_db.execute("SELECT station_id, day_of_week, metric, data FROM station_range ORDER BY 1,2,3").fetchall()
+    import collector.station_ranges as builder
+
+    calls = {"n": 0}
+    real = builder._station_blobs
+
+    def boom(rows):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("killed mid-build")
+        return real(rows)
+
+    monkeypatch.setattr(builder, "_station_blobs", boom)
+    with pytest.raises(RuntimeError, match="killed"):
+        builder.build_station_ranges(frozen_db, int(time.time()))
+    after = frozen_db.execute("SELECT station_id, day_of_week, metric, data FROM station_range ORDER BY 1,2,3").fetchall()
+    assert [tuple(r) for r in after] == [tuple(r) for r in before]
+
+
+def test_resume_continues_an_interrupted_build(frozen_db, monkeypatch):
+    import collector.station_ranges as builder
+
+    expected = frozen_db.execute("SELECT station_id, day_of_week, metric, data FROM station_range ORDER BY 1,2,3").fetchall()
+    end_ts = int(time.time())
+    real = builder._station_blobs
+    calls = {"n": 0}
+
+    def boom(rows):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("killed mid-build")
+        return real(rows)
+
+    monkeypatch.setattr(builder, "_station_blobs", boom)
+    with pytest.raises(RuntimeError):
+        builder.build_station_ranges(frozen_db, end_ts)
+    frozen_db.commit()
+    monkeypatch.setattr(builder, "_station_blobs", real)
+
+    processed = []
+    monkeypatch.setattr(builder, "_station_blobs", lambda rows: (processed.append(1), real(rows))[1])
+    builder.build_station_ranges(frozen_db, end_ts, resume=True)
+    assert len(processed) == 1  # only the station that had not finished
+    got = frozen_db.execute("SELECT station_id, day_of_week, metric, data FROM station_range ORDER BY 1,2,3").fetchall()
+    assert [tuple(r) for r in got] == [tuple(r) for r in expected]
+    assert frozen_db.execute(
+        "SELECT 1 FROM sqlite_master WHERE name = 'station_range_new'"
+    ).fetchone() is None
+
+
+def test_negative_counts_do_not_abort_the_build(db):
+    end_ts = int(time.time())
+    _insert(db, "S1", timestamp_for(1, 480, 1), -3, -3, -3)
+    _insert(db, "S1", timestamp_for(1, 480, 2), -1, -1, -1)
+    db.commit()
+    build_station_ranges(db, end_ts)
+    assert db.execute("SELECT COUNT(*) FROM station_range WHERE station_id = 'S1'").fetchone()[0] == 3
+
+
+def test_dst_ranges_are_cached_and_unchanged():
+    import local_time
+
+    first = local_time.dst_ranges()
+    assert first == local_time.dst_ranges()
+    assert local_time._dst_ranges_cached() is local_time._dst_ranges_cached()
+    # 2026: DST starts Mar 8 07:00 UTC, ends Nov 1 06:00 UTC.
+    assert (1772953200, 1793512800) in first
+    assert local_time.utc_offset_seconds(1772953199) == local_time.EST_OFFSET_SECONDS
+    assert local_time.utc_offset_seconds(1772953200) == local_time.EDT_OFFSET_SECONDS
