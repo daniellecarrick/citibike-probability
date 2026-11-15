@@ -18,6 +18,7 @@ Durable rollup rows keep whatever bucketing was in force when they were
 built, so changing anything here requires a full rebuild_rollup().
 """
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 EST_OFFSET_SECONDS = -5 * 3600
 EDT_OFFSET_SECONDS = -4 * 3600
@@ -32,18 +33,25 @@ def _nth_sunday(year: int, month: int, n: int) -> datetime:
     return first_sunday + timedelta(weeks=n - 1)
 
 
-def dst_ranges() -> list[tuple[int, int]]:
-    """[(dst_start_utc, dst_end_utc), ...] epoch seconds; DST applies to [start, end)."""
+@lru_cache(maxsize=1)
+def _dst_ranges_cached() -> tuple[tuple[int, int], ...]:
+    # Computed once: utc_offset_seconds() runs per row, and rebuilding 30 years
+    # of datetimes on every call made bulk Python-side bucketing ~30x slower.
     ranges = []
     for year in range(FIRST_YEAR, LAST_YEAR + 1):
         start = _nth_sunday(year, 3, 2).replace(hour=7)
         end = _nth_sunday(year, 11, 1).replace(hour=6)
         ranges.append((int(start.timestamp()), int(end.timestamp())))
-    return ranges
+    return tuple(ranges)
+
+
+def dst_ranges() -> list[tuple[int, int]]:
+    """[(dst_start_utc, dst_end_utc), ...] epoch seconds; DST applies to [start, end)."""
+    return list(_dst_ranges_cached())
 
 
 def utc_offset_seconds(ts: int) -> int:
-    for start, end in dst_ranges():
+    for start, end in _dst_ranges_cached():
         if start <= ts < end:
             return EDT_OFFSET_SECONDS
     return EST_OFFSET_SECONDS

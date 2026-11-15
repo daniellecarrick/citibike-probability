@@ -12,8 +12,12 @@ backend directory (e.g. in a Railway shell, where DB_PATH is already set):
     python -m collector.station_ranges --end-ts 1794748387
 
 Pure standard library, single pass per station via idx_snap_station_time, so
-memory stays small (one station's ~26k rows at a time). Safe to re-run — it
-replaces the table's contents.
+memory stays small (one station's ~26k rows at a time).
+
+The table is built under a temporary name (station_range_new) and swapped in
+only after a station-count check passes, so an interrupted run never leaves
+the live station_range half-filled. Re-run with --resume to continue an
+interrupted build instead of starting over (same --end-ts / DATA_END_TS).
 
 Matches get_stability_metrics(exact=True) bucketing: New York local time,
 day of week 0=Monday, and the ±15-minute window clamped (not wrapped) at
@@ -43,7 +47,8 @@ SECONDS_PER_WEEK = 604800
 LOOKBACK_DAYS = 90
 WINDOW_SECONDS = 15 * 60
 SLOT_SECONDS = 300
-COMMIT_EVERY_STATIONS = 100
+COMMIT_EVERY_STATIONS = 25
+NEW_TABLE = "station_range_new"
 
 # Column order here is RANGE_METRICS order: bikes, ebikes, docks.
 _SNAPSHOT_QUERY = """
@@ -54,7 +59,9 @@ _SNAPSHOT_QUERY = """
 
 
 def _enc(x: float) -> int:
-    return int(round(x * 10))
+    # Clamped to the uint16 range so one odd value (e.g. a negative count from
+    # the feed) can't abort a multi-hour build.
+    return max(0, min(0xFFFF, int(round(x * 10))))
 
 
 def _slot_fields(sorted_vals: list[float]) -> tuple[int, ...]:
@@ -99,8 +106,8 @@ def _station_blobs(rows) -> dict[tuple[int, str], bytes]:
     return blobs
 
 
-def build_station_ranges(conn: sqlite3.Connection, end_ts: Optional[int] = None) -> int:
-    """Rebuilds station_range; returns the number of rows written."""
+def build_station_ranges(conn: sqlite3.Connection, end_ts: Optional[int] = None, resume: bool = False) -> int:
+    """Builds station_range and swaps it in; returns the number of rows written."""
     if end_ts is None:
         env_end = os.environ.get("DATA_END_TS")
         end_ts = int(env_end) if env_end else conn.execute(
@@ -110,27 +117,51 @@ def build_station_ranges(conn: sqlite3.Connection, end_ts: Optional[int] = None)
         raise RuntimeError("station_snapshots is empty — nothing to build from")
     since = end_ts - LOOKBACK_DAYS * SECONDS_PER_DAY
 
+    # Wait for a lock instead of failing the build if the app writes meanwhile.
+    conn.execute("PRAGMA busy_timeout = 60000")
     station_ids = [r[0] for r in conn.execute("SELECT station_id FROM stations ORDER BY station_id")]
+    create_new = CREATE_TABLE_SQL.replace("IF NOT EXISTS station_range", f"IF NOT EXISTS {NEW_TABLE}")
     with conn:
-        conn.execute(CREATE_TABLE_SQL)
-        conn.execute("DELETE FROM station_range")
+        if not resume:
+            conn.execute(f"DROP TABLE IF EXISTS {NEW_TABLE}")
+        conn.execute(create_new)
+    done = {r[0] for r in conn.execute(f"SELECT DISTINCT station_id FROM {NEW_TABLE}")} if resume else set()
+    if done:
+        log.info(f"Resuming: {len(done)} stations already built")
 
     t0 = time.monotonic()
-    written = 0
     for n, station_id in enumerate(station_ids, start=1):
-        rows = conn.execute(_SNAPSHOT_QUERY, (station_id, since)).fetchall()
-        if rows:
-            blobs = _station_blobs(rows)
-            conn.executemany(
-                "INSERT INTO station_range (station_id, day_of_week, metric, data) VALUES (?, ?, ?, ?)",
-                [(station_id, dow, metric, blob) for (dow, metric), blob in blobs.items()],
-            )
-            written += len(blobs)
+        if station_id not in done:
+            rows = conn.execute(_SNAPSHOT_QUERY, (station_id, since)).fetchall()
+            if rows:
+                blobs = _station_blobs(rows)
+                conn.executemany(
+                    f"INSERT OR REPLACE INTO {NEW_TABLE} (station_id, day_of_week, metric, data) VALUES (?, ?, ?, ?)",
+                    [(station_id, dow, metric, blob) for (dow, metric), blob in blobs.items()],
+                )
+                done.add(station_id)
         if n % COMMIT_EVERY_STATIONS == 0:
             conn.commit()
-            log.info(f"{n}/{len(station_ids)} stations, {written} rows, {time.monotonic() - t0:.0f}s")
+            log.info(f"{n}/{len(station_ids)} stations, {len(done)} with data, {time.monotonic() - t0:.0f}s")
     conn.commit()
-    log.info(f"Built station_range: {written} rows in {time.monotonic() - t0:.0f}s")
+
+    built_stations, written = conn.execute(
+        f"SELECT COUNT(DISTINCT station_id), COUNT(*) FROM {NEW_TABLE}"
+    ).fetchone()
+    if built_stations == 0:
+        raise RuntimeError("No station had snapshots in the window; leaving station_range untouched")
+    if built_stations != len(done):
+        raise RuntimeError(f"{NEW_TABLE} has {built_stations} stations but {len(done)} were processed; not swapping")
+
+    # Atomic swap: readers see the old table or the complete new one, never a partial.
+    with conn:
+        conn.execute("DROP TABLE IF EXISTS station_range")
+        conn.execute(f"ALTER TABLE {NEW_TABLE} RENAME TO station_range")
+    try:
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except sqlite3.Error as exc:  # best effort: only shrinks the -wal file
+        log.warning(f"wal_checkpoint failed: {exc}")
+    log.info(f"Built station_range: {written} rows for {built_stations} stations in {time.monotonic() - t0:.0f}s")
     return written
 
 
@@ -139,9 +170,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build the station_range table from station_snapshots.")
     parser.add_argument("--end-ts", type=int, default=None,
                         help="Unix UTC end of the 90-day window (default: DATA_END_TS, else newest snapshot)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Continue an interrupted build (keeps station_range_new; use the same end timestamp)")
     args = parser.parse_args()
     connection = get_connection()
     try:
-        build_station_ranges(connection, args.end_ts)
+        build_station_ranges(connection, args.end_ts, resume=args.resume)
     finally:
         connection.close()
